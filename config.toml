@@ -1,0 +1,11 @@
+[general]
+enable_bucket = true
+
+[[datasets]]
+resolution = 512
+batch_size = 1
+
+[[datasets.subsets]]
+image_dir = "datasets/font_dataset"  # 이미지 폴더 경로
+class_tokens = "clean_text"        # 학습할 주제를 나타내는 토큰
+num_repeats = 10                     # 반복 횟수
