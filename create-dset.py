@@ -115,8 +115,10 @@ def list_files_in_directory(directory_path):
 
 def main():
     # 예시 사용법
-    directory_path = '/Users/doheyonkim/data/fontbox/ttfs/en-20/'
-    save_path = '/Users/doheyonkim/Depot/sd-scripts/datasets/font_dataset'
+    # directory_path = '/Users/doheyonkim/data/fontbox/ttfs/en-20/'
+    directory_path = '/home/user/resources/ttfs/en-20/0a1d7b390e726f4183a934210cfeee22'
+    # save_path = '/Users/doheyonkim/Depot/sd-scripts/datasets/font_dataset'
+    save_path = '/home/user/data/sd-scripts/datasets/font_dataset'
     # mkdir
     os.makedirs(save_path, exist_ok=True)
     files = list_files_in_directory(directory_path)
