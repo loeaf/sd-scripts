@@ -69,7 +69,7 @@ def main():
     #     arr_eng.append(chr(i))
     # for 가
     # 각 문자에 대해 이미지 생성
-    generator.create_font_image('현', "./481d2eaca08bef8b2e833324477d674d", 0)  # 폰트 경로는 실제 경로로 수정 필요
+    generator.create_font_image('를', "./481d2eaca08bef8b2e833324477d674d", 0)  # 폰트 경로는 실제 경로로 수정 필요
 
 
 if __name__ == "__main__":

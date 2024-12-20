@@ -3,7 +3,7 @@ enable_bucket = true
 
 [[datasets]]
 resolution = 512
-batch_size = 1
+batch_size = 3
 
 [[datasets.subsets]]
 image_dir = "datasets/font_dataset"  # 이미지 폴더 경로
