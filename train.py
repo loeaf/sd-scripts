@@ -73,6 +73,8 @@ def main():
         print(f"Dataset path: {dataset_path}")
 
         # Create config for this dataset
+        # mkdir
+        os.makedirs('./config', exist_ok=True)
         config = create_config(dataset_path)
 
         # Create config file path
