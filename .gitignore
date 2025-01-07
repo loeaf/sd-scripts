@@ -11,5 +11,7 @@ datasets
 db96f6e4dac8a65e529775aaa3d4dc27
 sd3
 my_lora_models
-output
+/output
+/outputs
+/config
 .idea
