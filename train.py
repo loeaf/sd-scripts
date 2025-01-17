@@ -63,7 +63,7 @@ def main():
     # Process each dataset path
     for i, obj in enumerate(dataset_paths, 1):
         dataset_path = obj[0]
-        lora_path = obj[4].replace('\n', '')
+        lora_path = obj[3].replace('\n', '')
         # Base command without config path
         base_cmd = (
             f'CUDA_VISIBLE_DEVICES=1 {args.base_command} '
