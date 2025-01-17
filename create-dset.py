@@ -127,10 +127,9 @@ def main():
         reader = csv.reader(f)
 
         for row in reader:
-            split_row = row.split(',')
-            fontPath = split_row[0]
-            trainPath = split_row[3]
-            sumnailPath = split_row[5]
+            fontPath = row[0]
+            trainPath = row[3]
+            sumnailPath = row[5]
 
             for idx, file in enumerate(files, start=1):
                 # 영문자 배열 생성
