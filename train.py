@@ -21,8 +21,8 @@ def read_dataset_paths(csv_file):
         # row split by ',' and get 3rd index and 5th index
         data = [row.split(',') for row in data]
         for row in data:
-            print(row[3], row[5])
-            arr.append([row[3], row[5]])
+            print(row[3], row[4])
+            arr.append([row[3], row[4]])
 
     return arr
 
