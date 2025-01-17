@@ -63,7 +63,7 @@ def create_font_pairs_csv():
     for num in sorted(set(origin_dict.keys()) & set(target_dict.keys())):
         uuid_str = str(uuid.uuid4())
         # 0: target, 1: origin, 2: uuid, 3: train_path, 4: lora_path, 5: sumnail_path
-        pairs.append([target_dict[num], origin_dict[num], uuid_str, train_path + '/' + uuid_str, lora_path + '/' + uuid_str, sumnail_path + '/' + uuid_str])
+        pairs.append([target_dict[num], origin_dict[num], uuid_str, train_path + '/' + uuid_str, lora_path + '/' + uuid_str, sumnail_path])
 
     # CSV 파일로 저장
     with open(rootPath + '/font_pairs.csv', 'w', newline='') as f:
