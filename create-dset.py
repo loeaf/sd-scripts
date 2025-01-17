@@ -20,10 +20,11 @@ class FontImageGenerator:
         self.output_dir = output_dir
         os.makedirs(self.output_dir, exist_ok=True)
 
-    def create_font_image(self, text: str, font_path: str, index: int) -> None:
+    def create_font_image(self, text: str, font_path: str, index: int, trainPath: str) -> None:
         """텍스트를 이미지로 변환하고 저장"""
         image = Image.new('RGB', self.image_size, color='white')
         draw = ImageDraw.Draw(image)
+        self.output_dir = trainPath
         try:
             # 폰트 크기 조정
             font_size = 1
@@ -62,10 +63,11 @@ class FontImageGenerator:
         except Exception as e:
             print(f"폰트 '{font_path}' 처리 중 오류 발생: {str(e)}")
 
-    def create_sumnail_image(self, text: str, font_path: str, file_name: str) -> None:
+    def create_sumnail_image(self, text: str, font_path: str, file_name: str, sumnailPath: str) -> None:
         """텍스트를 이미지로 변환하고 저장"""
         image = Image.new('RGB', self.image_size, color='white')
         draw = ImageDraw.Draw(image)
+        self.sumnail_dir = sumnailPath
         try:
             # 폰트 크기 조정
             font_size = 1
@@ -121,25 +123,27 @@ def main():
     save_path = '/home/user/data/sd-scripts/datasets/font_dataset'
     # mkdir
     os.makedirs(save_path, exist_ok=True)
-    files = list_files_in_directory(directory_path)
-    csv_file_path = os.path.join(save_path, f"dataset.csv")
+    # files = list_files_in_directory(directory_path)
 
-    with open(csv_file_path, mode='w', newline='', encoding='utf-8') as csv_file:
-        csv_writer = csv.writer(csv_file)
-        csv_writer.writerow(['Index', 'Data Path'])
+    # read font_pairs.csv file
+    files = []
+    with open('font_pairs.csv', 'r') as f:
+        reader = csv.reader(f)
 
-        for idx, file in enumerate(files, start=1):
-            # 영문자 배열 생성
-            arr_eng = ['Q', 'Z', 'X', 'K', 'g', 'f', 'j', 'y', 'O', 'W', 'M', 'p', 'b', 't']
-            # 각 문자에 대해 이미지 생성
-            generator = FontImageGenerator()
-            generator.set_output_dir(f"datasets/font_dataset/{file}")
+        for row in reader:
+            split_row = row.split(',')
+            fontPath = split_row[0]
+            trainPath = split_row[3]
+            sumnailPath = split_row[5]
 
-            csv_writer.writerow([idx, f"datasets/font_dataset/{file}"])
-            for idx, char in enumerate(arr_eng, start=1):
-                generator.create_font_image(char, directory_path + file, idx)  # 폰트 경로는 실제 경로로 수정 필요
-            generator.create_sumnail_image('QXKgfjyO', directory_path + file, file)
-
+            for idx, file in enumerate(files, start=1):
+                # 영문자 배열 생성
+                arr_eng = ['Q', 'Z', 'X', 'K', 'g', 'f', 'j', 'y', 'O', 'W', 'M', 'p', 'b', 't']
+                # 각 문자에 대해 이미지 생성
+                generator = FontImageGenerator()
+                for idx, char in enumerate(arr_eng, start=1):
+                    generator.create_font_image(char, fontPath, idx, trainPath)  # 폰트 경로는 실제 경로로 수정 필요
+                generator.create_sumnail_image('QXKgfjyO', fontPath, file, sumnailPath)
 
 
 if __name__ == "__main__":

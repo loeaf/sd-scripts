@@ -71,8 +71,8 @@ def main():
     # 각 문자에 대해 이미지 생성
     # generator.create_font_image('현', "./481d2eaca08bef8b2e833324477d674d", 0)  # 폰트 경로는 실제 경로로 수정 필요
     # 얇은거
-    # 뭉게구름 노을 빛 하늘
-    data = ['뭉', '게', '구', '름', '노', '을', '빛', '하', '늘']
+    # 그를 쏙 빼닮은 너희와 숲길 꽃 찾기
+    data = ['그','를','쏙','빼','닮','은','너','희','와','숲','길','꽃','찾','기']
     for index, data in enumerate(data):
         # generator.create_font_image(data, "./db96f6e4dac8a65e529775aaa3d4dc27", index)
         generator.create_font_image(data, "./481d2eaca08bef8b2e833324477d674d", index)

@@ -1,3 +1,5 @@
+import csv
+
 import pandas as pd
 import os
 import argparse
@@ -7,9 +9,23 @@ import toml
 
 
 def read_dataset_paths(csv_file):
-    """Read dataset paths from CSV file"""
-    df = pd.read_csv(csv_file)
-    return df['Data Path'].tolist()
+    """Read dataset paths from CSV file
+    # 0: target, 1: origin, 2: uuid, 3: train_path, 4: lora_path, 5: sumnail_path
+    using index 3, 5
+    """
+    arr = []
+    with open(csv_file, 'r') as f:
+        # read csv file f
+        data = f.readlines()
+
+        # row split by ',' and get 3rd index and 5th index
+        data = [row.split(',') for row in data]
+        for row in data:
+            print(row[3], row[5])
+            arr.append([row[3], row[5]])
+
+    return arr
+
 
 
 def create_config(image_dir):
@@ -37,38 +53,40 @@ def create_config(image_dir):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--csv_file', type=str, default='./datasets/font_dataset/dataset.csv', help='Path to CSV file containing dataset paths')
+    parser.add_argument('--csv_file', type=str, default='./font_pairs.csv', help='Path to CSV file containing dataset paths')
     parser.add_argument('--base_command', type=str, default='python ./train_network.py', help='Base training command')
     args = parser.parse_args()
 
-    # Read dataset paths from CSV
+    # read lora path from csv file
     dataset_paths = read_dataset_paths(args.csv_file)
 
-    # Base command without config path
-    base_cmd = (
-        f'CUDA_VISIBLE_DEVICES=1 {args.base_command} '
-        '--pretrained_model_name_or_path="./sd3/Anything-v4.5-pruned.safetensors" '
-        '--network_module=networks.lora '
-        '--network_dim=128 '
-        '--network_alpha=64 '
-        '--save_every_n_epochs=5 '
-        '--output_dir="./my_lora_models" '
-        '--noise_offset=0.1 '
-        '--optimizer_type=Lion '
-        '--clip_skip=2 '
-        '--learning_rate=1e-4 '
-        '--max_train_epochs=50 '
-        '--lr_scheduler=cosine_with_restarts '
-        '--lr_warmup_steps=100 '
-        '--save_state_on_train_end '
-        '--save_precision=fp16 '
-        '--mixed_precision=fp16 '
-        '--noise_offset_random_strength '
-        '--huber_schedule=snr'
-    )
-
     # Process each dataset path
-    for i, dataset_path in enumerate(dataset_paths, 1):
+    for i, obj in enumerate(dataset_paths, 1):
+        dataset_path = obj[0]
+        lora_path = obj[1].replace('\n', '')
+        # Base command without config path
+        base_cmd = (
+            f'CUDA_VISIBLE_DEVICES=1 {args.base_command} '
+            '--pretrained_model_name_or_path="./sd3/Anything-v4.5-pruned.safetensors" '
+            '--network_module=networks.lora '
+            '--network_dim=128 '
+            '--network_alpha=64 '
+            '--save_every_n_epochs=5 '
+            f'--output_dir="{lora_path}" '
+            '--noise_offset=0.1 '
+            '--optimizer_type=Lion '
+            '--clip_skip=2 '
+            '--learning_rate=1e-4 '
+            '--max_train_epochs=50 '
+            '--lr_scheduler=cosine_with_restarts '
+            '--lr_warmup_steps=100 '
+            '--save_state_on_train_end '
+            '--save_precision=fp16 '
+            '--mixed_precision=fp16 '
+            '--noise_offset_random_strength '
+            '--huber_schedule=snr'
+        )
+
         print(f"\nProcessing dataset {os.path.basename(dataset_path)}/{len(dataset_paths)}")
         print(f"Dataset path: {dataset_path}")
 
