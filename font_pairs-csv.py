@@ -13,7 +13,7 @@ def create_font_pairs_csv():
     # lora_path (lora 파일이 저장되어야할 경로)
 
     # input parameter
-    # python font_pairs-csv.py --csv_file=/home/user/data
+    # python font_pairs-csv.py --csv_file="/home/user/data/resource"
     parser = argparse.ArgumentParser()
     parser.add_argument('--csv_file', type=str, default='/Users/doheyonkim/data/fontbox/ttfs', help='Path to CSV file containing dataset paths')
     args = parser.parse_args()

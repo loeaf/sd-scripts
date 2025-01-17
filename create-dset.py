@@ -115,7 +115,7 @@ def list_files_in_directory(directory_path):
     except Exception as e:
         print(f"디렉토리 '{directory_path}' 처리 중 오류 발생: {str(e)}")
         return []
-
+# python create-dset.py --font_pairs_path /home/user/data/resource/font_pairs.csv
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--font_pairs_path', type=str, default='/Users/doheyonkim/data/fontbox/ttfs/font_pairs.csv', help='Path to CSV file containing dataset paths')
