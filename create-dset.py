@@ -23,9 +23,10 @@ class FontImageGenerator:
 
     def create_font_image(self, text: str, font_path: str, index: int, trainPath: str) -> None:
         """텍스트를 이미지로 변환하고 저장"""
+        self.output_dir = trainPath
+        os.makedirs(self.output_dir, exist_ok=True)
         image = Image.new('RGB', self.image_size, color='white')
         draw = ImageDraw.Draw(image)
-        self.output_dir = trainPath
         try:
             # 폰트 크기 조정
             font_size = 1
@@ -52,7 +53,6 @@ class FontImageGenerator:
 
             # 텍스트 그리기
             draw.text(position, text, font=font, fill='black')
-
             # 이미지와 텍스트 파일 저장
             image_path = os.path.join(self.output_dir, f"image{index}.png")
             txt_path = os.path.join(self.output_dir, f"image{index}.txt")
