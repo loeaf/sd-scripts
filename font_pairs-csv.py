@@ -1,3 +1,4 @@
+import argparse
 import os
 import csv
 import uuid
@@ -11,7 +12,12 @@ def create_font_pairs_csv():
     # origin_path (추론할때 사용해야하는 폰트 경로)   -- 숫자_폰트명.ttf
     # lora_path (lora 파일이 저장되어야할 경로)
 
-    rootPath = "/Users/doheyonkim/data/fontbox/ttfs"
+    # input parameter
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--csv_file', type=str, default='/Users/doheyonkim/data/fontbox/ttfs', help='Path to CSV file containing dataset paths')
+    args = parser.parse_args()
+    rootPath = args.root_path
+
     # 경로 설정
     origin_path = rootPath + '/sandoll-origin'
     target_path = rootPath + '/sandoll-target'
@@ -20,6 +26,8 @@ def create_font_pairs_csv():
     sumnail_path = rootPath + '/sumnail'
 
     # mkdir folder
+    os.makedirs(origin_path, exist_ok=True)
+    os.makedirs(target_path, exist_ok=True)
     os.makedirs(train_path, exist_ok=True)
     os.makedirs(lora_path, exist_ok=True)
     os.makedirs(sumnail_path, exist_ok=True)

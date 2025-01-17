@@ -1,3 +1,4 @@
+import argparse
 from dataclasses import dataclass
 from PIL import Image, ImageDraw, ImageFont
 from typing import Tuple
@@ -116,18 +117,13 @@ def list_files_in_directory(directory_path):
         return []
 
 def main():
-    # 예시 사용법
-    # directory_path = '/Users/doheyonkim/data/fontbox/ttfs/en-20/'
-    directory_path = '/home/user/resources/ttfs/en-20/'
-    # save_path = '/Users/doheyonkim/Depot/sd-scripts/datasets/font_dataset'
-    save_path = '/home/user/data/sd-scripts/datasets/font_dataset'
-    # mkdir
-    os.makedirs(save_path, exist_ok=True)
-    # files = list_files_in_directory(directory_path)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--font_pairs_path', type=str, default='/Users/doheyonkim/data/fontbox/ttfs/font_pairs.csv', help='Path to CSV file containing dataset paths')
+    args = parser.parse_args()
+    font_pairs_path = args.font_pairs_path
 
-    # read font_pairs.csv file
     files = []
-    with open('font_pairs.csv', 'r') as f:
+    with open(font_pairs_path, 'r') as f:
         reader = csv.reader(f)
 
         for row in reader:
