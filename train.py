@@ -50,7 +50,7 @@ def create_config(image_dir):
     }
     return config
 
-
+# python train.py --csv_file /home/user/data/resource/font_pairs.csv
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--csv_file', type=str, default='./font_pairs.csv', help='Path to CSV file containing dataset paths')
@@ -63,7 +63,7 @@ def main():
     # Process each dataset path
     for i, obj in enumerate(dataset_paths, 1):
         dataset_path = obj[0]
-        lora_path = obj[1].replace('\n', '')
+        lora_path = obj[4].replace('\n', '')
         # Base command without config path
         base_cmd = (
             f'CUDA_VISIBLE_DEVICES=1 {args.base_command} '
@@ -71,7 +71,7 @@ def main():
             '--network_module=networks.lora '
             '--network_dim=128 '
             '--network_alpha=64 '
-            '--save_every_n_epochs=5 '
+            # '--save_every_n_epochs=5 '
             f'--output_dir="{lora_path}" '
             '--noise_offset=0.1 '
             '--optimizer_type=Lion '
