@@ -26,6 +26,8 @@ def create_font_pairs_csv():
     train_path = rootPath + '/train'
     sumnail_path = rootPath + '/sumnail'
 
+
+
     # mkdir folder
     os.makedirs(origin_path, exist_ok=True)
     os.makedirs(target_path, exist_ok=True)
@@ -64,7 +66,7 @@ def create_font_pairs_csv():
         pairs.append([target_dict[num], origin_dict[num], uuid_str, train_path + '/' + uuid_str, lora_path + '/' + uuid_str, sumnail_path + '/' + uuid_str])
 
     # CSV 파일로 저장
-    with open('font_pairs.csv', 'w', newline='') as f:
+    with open(rootPath + '/font_pairs.csv', 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerows(pairs)
 
