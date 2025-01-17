@@ -118,7 +118,7 @@ def list_files_in_directory(directory_path):
 # python create-dset.py --font_pairs_path /home/user/data/resource/font_pairs.csv
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--font_pairs_path', type=str, default='/Users/doheyonkim/data/fontbox/ttfs/font_pairs.csv', help='Path to CSV file containing dataset paths')
+    parser.add_argument('--font_pairs_path', type=str, default='/Users/doheyonkim/Depot/sd-scripts/font_pairs.csv', help='Path to CSV file containing dataset paths')
     args = parser.parse_args()
     font_pairs_path = args.font_pairs_path
 
@@ -128,17 +128,17 @@ def main():
 
         for row in reader:
             fontPath = row[0]
+            uuid = row[2]
             trainPath = row[3]
             sumnailPath = row[5]
 
-            for idx, file in enumerate(files, start=1):
-                # 영문자 배열 생성
-                arr_eng = ['Q', 'Z', 'X', 'K', 'g', 'f', 'j', 'y', 'O', 'W', 'M', 'p', 'b', 't']
-                # 각 문자에 대해 이미지 생성
-                generator = FontImageGenerator()
-                for idx, char in enumerate(arr_eng, start=1):
-                    generator.create_font_image(char, fontPath, idx, trainPath)  # 폰트 경로는 실제 경로로 수정 필요
-                generator.create_sumnail_image('QXKgfjyO', fontPath, file, sumnailPath)
+            # 영문자 배열 생성
+            arr_eng = ['Q', 'Z', 'X', 'K', 'g', 'f', 'j', 'y', 'O', 'W', 'M', 'p', 'b', 't']
+            # 각 문자에 대해 이미지 생성
+            generator = FontImageGenerator()
+            for idx, char in enumerate(arr_eng, start=1):
+                generator.create_font_image(char, fontPath, idx, trainPath)  # 폰트 경로는 실제 경로로 수정 필요
+            generator.create_sumnail_image('QXKgfjyO', fontPath, uuid, sumnailPath)
 
 
 if __name__ == "__main__":
