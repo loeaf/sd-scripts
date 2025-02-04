@@ -38,7 +38,7 @@ def create_config(image_dir):
         "datasets": [
             {
                 "resolution": 512,
-                "batch_size": 4,
+                "batch_size": 3,
                 "subsets": [
                     {
                         "image_dir": image_dir,
