@@ -43,7 +43,7 @@ def create_config(image_dir):
                     {
                         "image_dir": image_dir,
                         "class_tokens": "sandoll style, letter, black and white",  # 더 구체적인 캡션
-                        "num_repeats": 20
+                        "num_repeats": 20  # 적은 이미지 수 고려
                     }
                 ]
             }
@@ -71,17 +71,17 @@ def main():
             f'CUDA_VISIBLE_DEVICES=1 {args.base_command} '
             '--pretrained_model_name_or_path="./sd3/Anything-v4.5-pruned.safetensors" '
             '--network_module=networks.lora '
-            '--network_dim=256 '
-            '--network_alpha=64 '
+            '--network_dim=64 '
+            '--network_alpha=32 '
             # '--save_every_n_epochs=5 '
             f'--output_dir="{lora_path}" '
             '--noise_offset=0.1 '
             '--optimizer_type=Lion '
             '--clip_skip=2 '
-            '--learning_rate=5e-5 '
-            '--max_train_epochs=1500 '
+            '--learning_rate=1e-4 '
+            '--max_train_epochs=30 '
             '--lr_scheduler=cosine_with_restarts '
-            '--lr_warmup_steps=100 '
+            # '--lr_warmup_steps=100 '
             '--save_state_on_train_end '
             '--save_precision=fp16 '
             '--mixed_precision=fp16 '
