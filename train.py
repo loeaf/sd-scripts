@@ -32,17 +32,18 @@ def create_config(image_dir):
     """Create config dictionary with the specified image_dir"""
     config = {
         "general": {
-            "enable_bucket": True
+            "enable_bucket": False,  # 단순 로고는 bucket 불필요
+            "shuffle_caption": False  # 캡션 순서 고정
         },
         "datasets": [
             {
                 "resolution": 512,
-                "batch_size": 3,
+                "batch_size": 4,
                 "subsets": [
                     {
                         "image_dir": image_dir,
-                        "class_tokens": "clean_text",
-                        "num_repeats": 10
+                        "class_tokens": "sandoll style, letter, black and white",  # 더 구체적인 캡션
+                        "num_repeats": 20
                     }
                 ]
             }
