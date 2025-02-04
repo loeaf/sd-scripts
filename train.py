@@ -77,7 +77,7 @@ def main():
             '--noise_offset=0.1 '
             '--optimizer_type=Lion '
             '--clip_skip=2 '
-            '--learning_rate=1e-4 '
+            '--learning_rate=5e-5 '
             '--max_train_epochs=50 '
             '--lr_scheduler=cosine_with_restarts '
             '--lr_warmup_steps=100 '
