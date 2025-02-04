@@ -119,6 +119,7 @@ def list_files_in_directory(directory_path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--font_pairs_path', type=str, default='/Users/doheyonkim/Depot/sd-scripts/font_pairs.csv', help='Path to CSV file containing dataset paths')
+    parser.add_argument('--type', type=str, default='en', help='Path to CSV file containing dataset paths')
     args = parser.parse_args()
     font_pairs_path = args.font_pairs_path
 
@@ -131,14 +132,25 @@ def main():
             uuid = row[2]
             trainPath = row[3]
             sumnailPath = row[5]
-
-            # 영문자 배열 생성
-            arr_eng = ['Q', 'Z', 'X', 'K', 'g', 'f', 'j', 'y', 'O', 'W', 'M', 'p', 'b', 't']
+            # if ko or en
+            if args.type == 'ko':
+                # 하얀 뭉게구름 속 노을 빛 활자
+                arr = ['하', '얀', '뭉', '게', '구', '름', '속', '노', '을', '빛', '활', '자']
+            elif args.type == 'cz':
+                # 今国意我永然警酬随
+                arr = ['今', '国', '意', '我', '永', '然', '警', '酬', '随']
+            else:
+                arr = ['Q', 'Z', 'X', 'K', 'g', 'f', 'j', 'y', 'O', 'W', 'M', 'p', 'b', 't']
             # 각 문자에 대해 이미지 생성
             generator = FontImageGenerator()
-            for idx, char in enumerate(arr_eng, start=1):
+            for idx, char in enumerate(arr, start=1):
                 generator.create_font_image(char, fontPath, idx, trainPath)  # 폰트 경로는 실제 경로로 수정 필요
-            generator.create_sumnail_image('QXKgfjyO', fontPath, uuid, sumnailPath)
+            if args.type == 'ko':
+                generator.create_sumnail_image('하얀 뭉게구름 속 노을 빛 활자', fontPath, uuid, sumnailPath)
+            elif args.type == 'cz':
+                generator.create_sumnail_image('今国意我永然警酬随', fontPath, uuid, sumnailPath)
+            else:
+                generator.create_sumnail_image('QXKgfjyO', fontPath, uuid, sumnailPath)
 
 
 if __name__ == "__main__":
