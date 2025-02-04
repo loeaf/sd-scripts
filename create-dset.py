@@ -115,7 +115,7 @@ def list_files_in_directory(directory_path):
     except Exception as e:
         print(f"디렉토리 '{directory_path}' 처리 중 오류 발생: {str(e)}")
         return []
-# python create-dset.py --font_pairs_path /home/user/data/resource/font_pairs.csv
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--font_pairs_path', type=str, default='/Users/doheyonkim/Depot/sd-scripts/font_pairs.csv', help='Path to CSV file containing dataset paths')
@@ -135,7 +135,7 @@ def main():
             # if ko or en
             if args.type == 'ko':
                 # 하얀 뭉게구름 속 노을 빛 활자
-                arr = ['하', '얀', '뭉', '게', '구', '름', '속', '노', '을', '빛', '활', '자']
+                arr = ['하', '뭉', '게', '속']
             elif args.type == 'cz':
                 # 今国意我永然警酬随
                 arr = ['今', '国', '意', '我', '永', '然', '警', '酬', '随']
