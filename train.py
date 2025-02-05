@@ -5,7 +5,17 @@ import os
 import argparse
 import subprocess
 from pathlib import Path
+
+import requests
 import toml
+GOOGLE_CHAT_WEBHOOK = "https://chat.googleapis.com/v1/spaces/AAAABLzMLsI/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=lwSnIq9XvRuT56A9BRh1xEuE-wU8vzqny_skSrTMIio"
+
+def send_google_chat_message(message):
+    """Google Chat으로 메시지를 보내는 함수"""
+    headers = {'Content-Type': 'application/json; charset=UTF-8'}
+    data = {'text': message}
+    response = requests.post(GOOGLE_CHAT_WEBHOOK, headers=headers, data=json.dumps(data))
+    return response.status_code
 
 
 def read_dataset_paths(csv_file):
@@ -71,8 +81,8 @@ def main():
             f'CUDA_VISIBLE_DEVICES=1 {args.base_command} '
             '--pretrained_model_name_or_path="./sd3/Anything-v4.5-pruned.safetensors" '
             '--network_module=networks.lora '
-            '--network_dim=64 '
-            '--network_alpha=32 '
+            '--network_dim=128 '
+            '--network_alpha=64 '
             # '--save_every_n_epochs=5 '
             f'--output_dir="{lora_path}" '
             '--noise_offset=0.1 '
@@ -119,6 +129,7 @@ def main():
             # Clean up config file
             # if os.path.exists(config_path):
             #     os.remove(config_path)
+    send_google_chat_message("폰트 학습 완료")
 
 
 if __name__ == "__main__":
