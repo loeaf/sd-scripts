@@ -52,7 +52,7 @@ def create_config(image_dir):
                 "subsets": [
                     {
                         "image_dir": image_dir,
-                        "class_tokens": "sandoll style, letter, black and white",  # 더 구체적인 캡션
+                        "class_tokens": "high quality korean font character, professional typography, sandoll style",  # 더 구체적인 캡션
                         "num_repeats": 10  # 적은 이미지 수 고려
                     }
                 ]
@@ -81,15 +81,15 @@ def main():
             f'CUDA_VISIBLE_DEVICES=1 {args.base_command} '
             '--pretrained_model_name_or_path="/home/user/data/stable-diffusion-webui-forge/models/Stable-diffusion/sd_2-1.safetensors" '
             '--network_module=networks.lora '
-            '--network_dim=64 '
-            '--network_alpha=32 '
+            '--network_dim=128 '
+            '--network_alpha=64 '
             # '--save_every_n_epochs=5 '
             f'--output_dir="{lora_path}" '
             '--noise_offset=0.1 '
             '--optimizer_type=Lion '
             '--clip_skip=2 '
             '--learning_rate=1e-5 '
-            '--max_train_epochs=200 '
+            '--max_train_epochs=300 '
             '--lr_scheduler=cosine_with_restarts '
             # '--lr_warmup_steps=100 '
             '--save_state_on_train_end '
