@@ -79,7 +79,7 @@ def main():
         # Base command without config path
         base_cmd = (
             f'CUDA_VISIBLE_DEVICES=1 {args.base_command} '
-            '--pretrained_model_name_or_path="/home/user/data/stable-diffusion-webui-forge/models/Stable-diffusion/flux1-dev.safetensors" '
+            '--pretrained_model_name_or_path="/home/user/data/stable-diffusion-webui-forge/models/Stable-diffusion/sd_2-1.safetensors" '
             '--network_module=networks.lora '
             '--network_dim=64 '
             '--network_alpha=32 '
