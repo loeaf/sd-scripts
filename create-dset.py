@@ -140,7 +140,9 @@ def main():
                 # 今国意我永然警酬随
                 arr = ['今', '国', '意', '我', '永', '然', '警', '酬', '随']
             else:
-                arr = ['Q', 'Z', 'X', 'K', 'g', 'f', 'j', 'y', 'O', 'W', 'M', 'p', 'b', 't']
+                # arr = ['Q', 'Z', 'X', 'K', 'g', 'f', 'j', 'y', 'O', 'W', 'M', 'p', 'b', 't']
+                # H O C T X
+                arr = ['H', 'O', 'C', 'T', 'X']
             # 각 문자에 대해 이미지 생성
             generator = FontImageGenerator()
             for idx, char in enumerate(arr, start=1):
@@ -150,7 +152,7 @@ def main():
             elif args.type == 'cz':
                 generator.create_sumnail_image('今国意我永然警酬随', fontPath, uuid, sumnailPath)
             else:
-                generator.create_sumnail_image('QXKgfjyO', fontPath, uuid, sumnailPath)
+                generator.create_sumnail_image('H O C T X', fontPath, uuid, sumnailPath)
 
 
 if __name__ == "__main__":
