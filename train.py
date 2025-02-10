@@ -53,7 +53,7 @@ def create_config(image_dir):
                     {
                         "image_dir": image_dir,
                         "class_tokens": "sandoll style, letter, black and white",  # 더 구체적인 캡션
-                        "num_repeats": 20  # 적은 이미지 수 고려
+                        "num_repeats": 10  # 적은 이미지 수 고려
                     }
                 ]
             }
@@ -89,7 +89,7 @@ def main():
             '--optimizer_type=Lion '
             '--clip_skip=2 '
             '--learning_rate=1e-4 '
-            '--max_train_epochs=300 '
+            '--max_train_epochs=200 '
             '--lr_scheduler=cosine_with_restarts '
             # '--lr_warmup_steps=100 '
             '--save_state_on_train_end '
