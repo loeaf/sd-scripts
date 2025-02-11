@@ -83,7 +83,9 @@ def main():
             '--network_module=networks.lora '
             '--network_dim=128 '
             '--network_alpha=64 '
-            # '--save_every_n_epochs=5 '
+            '--loss_type=smooth_l1 '  # 추가: Huber/smooth L1/MSE 손실 함수 선택
+            '--huber_schedule=snr '  # 추가: 스케줄링 방법 선택
+            '--huber_c=0.1 '  # 추가: Huber 손실 파라미터
             f'--output_dir="{lora_path}" '
             '--noise_offset=0.1 '
             '--optimizer_type=Lion '
@@ -91,7 +93,6 @@ def main():
             '--learning_rate=1e-5 '
             '--max_train_epochs=150 '
             '--lr_scheduler=cosine_with_restarts '
-            # '--lr_warmup_steps=100 '
             '--save_state_on_train_end '
             '--save_precision=fp16 '
             '--mixed_precision=fp16 '
