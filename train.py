@@ -93,7 +93,7 @@ def main():
             '--optimizer_type=Lion '
             '--clip_skip=2 '
             '--learning_rate=1e-5 '
-            '--max_train_epochs=300 '
+            '--max_train_epochs=30 '
             '--lr_scheduler=cosine_with_restarts '
             '--save_state_on_train_end '
             '--save_precision=fp16 '
