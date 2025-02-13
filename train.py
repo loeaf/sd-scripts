@@ -95,7 +95,7 @@ def main():
             '--noise_offset=0.1 '
             '--optimizer_type=Lion '
             '--learning_rate=5e-6 '
-            '--max_train_epochs=150 '
+            '--max_train_epochs=15 '
             '--lr_scheduler=cosine_with_restarts '
             '--save_state_on_train_end '
             '--save_precision=fp16 '
