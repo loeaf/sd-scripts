@@ -77,9 +77,11 @@ def main():
         lora_path = obj[1].replace('\n', '')
         print(f"Processing dataset {i}/{len(dataset_paths)}")
         # Base command without config path
+        # '--pretrained_model_name_or_path="/home/user/data/stable-diffusion-webui-forge/models/Stable-diffusion/Anything-v4.5-pruned.safetensors" '
+        # '--pretrained_model_name_or_path="/home/user/data/stable-diffusion-webui-forge/models/Stable-diffusion/sd_2-1.safetensors" '
         base_cmd = (
             f'CUDA_VISIBLE_DEVICES=1 {args.base_command} '
-            '--pretrained_model_name_or_path="/home/user/data/stable-diffusion-webui-forge/models/Stable-diffusion/sd_2-1.safetensors" '
+            '--pretrained_model_name_or_path="/home/user/data/stable-diffusion-webui-forge/models/Stable-diffusion/Anything-v4.5-pruned.safetensors" '
             '--network_module=networks.lora '
             '--network_dim=128 '
             '--network_alpha=64 '
