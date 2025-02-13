@@ -43,7 +43,9 @@ def create_config(image_dir):
     config = {
         "general": {
             "enable_bucket": False,  # 단순 로고는 bucket 불필요
-            "shuffle_caption": False  # 캡션 순서 고정
+            "shuffle_caption": False,  # 캡션 순서 고정
+            "keep_tokens": 2,        # 기본 스타일 토큰 유지
+                                    
         },
         "datasets": [
             {
@@ -52,8 +54,27 @@ def create_config(image_dir):
                 "subsets": [
                     {
                         "image_dir": image_dir,
-                        "class_tokens": "high quality korean font character, professional typography, sandoll style",  # 더 구체적인 캡션
-                        "num_repeats": 10  # 적은 이미지 수 고려
+                        "class_tokens": "professional typography, high quality lettering, vector art, clean lines, precise curves, detailed typography, artistic font design",  # 더 구체적인 캡션
+                        "num_repeats": 10,  # 적은 이미지 수 고려
+
+                        # 타이포그래피에 적합한 증강 설정
+                        "enable_aug": True,
+                        "random_crop": False,  # 글자가 잘리면 안됨
+                        "flip_aug": False,  # 좌우반전 금지
+
+                        # 미세한 회전만 허용
+                        "random_rotation": True,
+                        "rotation_range": [-5, 5],  # 매우 미세한 회전
+
+                        # 색상 및 대비 조정
+                        "color_aug": True,
+                        "brightness_range": [0.98, 1.02],  # 미세한 밝기 변화
+                        "contrast_range": [0.98, 1.02],  # 미세한 대비 변화
+
+                        # 타이포그래피 품질 유지를 위한 설정
+                        "enable_smart_crop": True,  # 글자 중심 크롭
+                        "smart_crop_target_size": 768,
+                        "smart_crop_thold": 0.7,  # 글자 영역 보존
                     }
                 ]
             }
@@ -87,13 +108,13 @@ def main():
             '--network_alpha=32 '
             '--loss_type=smooth_l1 '  # 추가: Huber/smooth L1/MSE 손실 함수 선택
             '--huber_schedule=snr '  # 추가: 스케줄링 방법 선택
-            '--huber_c=0.1 '  # 추가: Huber 손실 파라미터
+            '--huber_c=0.5 '  # 추가: Huber 손실 파라미터
             f'--output_dir="{lora_path}" '
             '--noise_offset=0.1 '
             '--optimizer_type=Lion '
             '--clip_skip=2 '
-            '--learning_rate=1e-5 '
-            '--max_train_epochs=30 '
+            '--learning_rate=5e-6 '
+            '--max_train_epochs=150 '
             '--lr_scheduler=cosine_with_restarts '
             '--save_state_on_train_end '
             '--save_precision=fp16 '
