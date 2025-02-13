@@ -57,11 +57,6 @@ def create_config(image_dir):
                         "class_tokens": "professional typography, high quality lettering, vector art, clean lines, precise curves, detailed typography, artistic font design",  # 더 구체적인 캡션
                         "num_repeats": 10,  # 적은 이미지 수 고려
 
-                        # 타이포그래피에 적합한 증강 설정
-                        "enable_aug": True,
-                        "random_crop": True,  # 글자가 잘리면 안됨
-                        "flip_aug": False,  # 좌우반전 금지
-
                     }
                 ]
             }
