@@ -86,16 +86,15 @@ def main():
             f'CUDA_VISIBLE_DEVICES=1 {args.base_command} '
             '--pretrained_model_name_or_path="/home/user/data/stable-diffusion-webui-forge/models/Stable-diffusion/Anything-v4.5-pruned.safetensors" '
             '--network_module=networks.lora '
-            '--network_dim=64 '
-            '--network_alpha=32 '
+            '--network_dim=128 '
+            '--network_alpha=64 '
             '--loss_type=smooth_l1 '  # 추가: Huber/smooth L1/MSE 손실 함수 선택
             '--huber_schedule=snr '  # 추가: 스케줄링 방법 선택
-            '--huber_c=0.1 '  # 추가: Huber 손실 파라미터
+            '--huber_c=0.5 '  # 추가: Huber 손실 파라미터
             f'--output_dir="{lora_path}" '
             '--noise_offset=0.1 '
             '--optimizer_type=Lion '
-            '--clip_skip=2 '
-            '--learning_rate=1e-5 '
+            '--learning_rate=5e-6 '
             '--max_train_epochs=150 '
             '--lr_scheduler=cosine_with_restarts '
             '--save_state_on_train_end '
@@ -103,6 +102,9 @@ def main():
             '--mixed_precision=fp16 '
             '--noise_offset_random_strength '
             '--huber_schedule=snr'
+            '--enable_smart_crop '      # 스마트 크롭 활성화
+            '--random_proportion '      # 비율 무작위화
+            '--proportion_range="0.9,1.1" '  # 비율 범위
         )
 
         print(f"\nProcessing dataset {os.path.basename(dataset_path)}/{len(dataset_paths)}")
