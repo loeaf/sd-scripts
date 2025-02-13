@@ -102,7 +102,6 @@ def main():
             '--mixed_precision=fp16 '
             '--noise_offset_random_strength '
             '--huber_schedule=snr'
-            '--enable_smart_crop '      # 스마트 크롭 활성화
         )
 
         print(f"\nProcessing dataset {os.path.basename(dataset_path)}/{len(dataset_paths)}")
