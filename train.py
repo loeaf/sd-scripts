@@ -117,9 +117,6 @@ def main():
             '--max_train_epochs=300 '
             '--lr_scheduler=cosine_with_restarts '
             '--save_state_on_train_end '
-            '--enable_smart_crop '      # 스마트 크롭 활성화
-            '--random_proportion '      # 비율 무작위화
-            '--proportion_range="0.9,1.1" '  # 비율 범위
             '--save_precision=fp16 '
             '--mixed_precision=fp16 '
             '--noise_offset_random_strength '
