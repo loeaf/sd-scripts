@@ -103,8 +103,6 @@ def main():
             '--noise_offset_random_strength '
             '--huber_schedule=snr'
             '--enable_smart_crop '      # 스마트 크롭 활성화
-            '--random_proportion '      # 비율 무작위화
-            '--proportion_range="0.9,1.1" '  # 비율 범위
         )
 
         print(f"\nProcessing dataset {os.path.basename(dataset_path)}/{len(dataset_paths)}")
