@@ -59,22 +59,9 @@ def create_config(image_dir):
 
                         # 타이포그래피에 적합한 증강 설정
                         "enable_aug": True,
-                        "random_crop": False,  # 글자가 잘리면 안됨
+                        "random_crop": True,  # 글자가 잘리면 안됨
                         "flip_aug": False,  # 좌우반전 금지
 
-                        # 미세한 회전만 허용
-                        "random_rotation": True,
-                        "rotation_range": [-5, 5],  # 매우 미세한 회전
-
-                        # 색상 및 대비 조정
-                        "color_aug": True,
-                        "brightness_range": [0.98, 1.02],  # 미세한 밝기 변화
-                        "contrast_range": [0.98, 1.02],  # 미세한 대비 변화
-
-                        # 타이포그래피 품질 유지를 위한 설정
-                        "enable_smart_crop": True,  # 글자 중심 크롭
-                        "smart_crop_target_size": 768,
-                        "smart_crop_thold": 0.7,  # 글자 영역 보존
                     }
                 ]
             }
