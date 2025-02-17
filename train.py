@@ -42,20 +42,21 @@ def create_config(image_dir):
     """Create config dictionary with the specified image_dir"""
     config = {
         "general": {
-            "enable_bucket": False,  # 단순 로고는 bucket 불필요
+            "enable_bucket": True,  # 단순 로고는 bucket 불필요
             "shuffle_caption": False,  # 캡션 순서 고정
             "keep_tokens": 2,        # 기본 스타일 토큰 유지
+            "clip_skip": 2  # CLIP 스킵 추가
                                     
         },
         "datasets": [
             {
-                "resolution": 512,
+                "resolution": 768,  # 해상도 증가
                 "batch_size": 3,
                 "subsets": [
                     {
                         "image_dir": image_dir,
                         "class_tokens": "professional typography, high quality lettering, vector art, clean lines, precise curves, detailed typography, artistic font design",  # 더 구체적인 캡션
-                        "num_repeats": 10,  # 적은 이미지 수 고려
+                        "num_repeats": 15,  # 적은 이미지 수 고려
 
                     }
                 ]
@@ -86,21 +87,25 @@ def main():
             f'CUDA_VISIBLE_DEVICES=1 {args.base_command} '
             '--pretrained_model_name_or_path="/home/user/data/stable-diffusion-webui-forge/models/Stable-diffusion/Anything-v4.5-pruned.safetensors" '
             '--network_module=networks.lora '
-            '--network_dim=128 '
-            '--network_alpha=64 '
+            '--network_dim=256 '
+            '--network_alpha=128 '
+            '--conv_dim=48 '  # Conv2d 레이어 추가 - 폰트의 시각적 특징 더 잘 포착
+            '--conv_alpha=24 '  # Conv 레이어의 알파값 설정
             '--loss_type=smooth_l1 '  # 추가: Huber/smooth L1/MSE 손실 함수 선택
             '--huber_schedule=snr '  # 추가: 스케줄링 방법 선택
             '--huber_c=0.5 '  # 추가: Huber 손실 파라미터
             f'--output_dir="{lora_path}" '
             '--noise_offset=0.1 '
             '--optimizer_type=Lion '
-            '--learning_rate=5e-6 '
-            '--max_train_epochs=60 '
+            '--learning_rate=1e-5 '  # 5e-6에서 상향 - 더 적극적인 학습
+            '--max_train_epochs=100 '  # 60에서 100으로 증
             '--lr_scheduler=cosine_with_restarts '
             '--save_state_on_train_end '
             '--save_precision=fp16 '
             '--mixed_precision=fp16 '
             '--noise_offset_random_strength '
+            '--gradient_accumulation_steps=4 '  # 그래디언트 누적으로 안정성 향상
+            '--lr_scheduler_num_cycles=5 '  # 학습률 재시작 횟수 명시
             '--huber_schedule=snr'
         )
 
