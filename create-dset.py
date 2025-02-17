@@ -137,16 +137,17 @@ def main():
                 # 하얀 뭉게구름 속 노을 빛 활자
                 # 가나더려모부쇼야져쵸켜튜프히
                 # arr = ['하', '얀', '뭉', '게', '구', '름', '속', '노', '을', '빛', '활', '자']
-                arr = ['가', '나', '더', '려', '모', '부', '쇼', '야', '져', '쵸', '켜', '튜', '프', '히', '응',
-                        '뭉', '게', '구', '름', '노', '을', '빛' , '짖', '속', '활', '자', '까', '싸', '따',
-                       '쑥', '뿍', '갉', '밝', '꺍', '뱖', '쏾', '쒧']
+                arr = ['가', '나', '더', '려', '모', '부', '쇼', '야', '져', '쵸', '켜', '튜', '프', '히']
+                # arr = ['가', '나', '더', '려', '모', '부', '쇼', '야', '져', '쵸', '켜', '튜', '프', '히', '응',
+                #         '뭉', '게', '구', '름', '노', '을', '빛' , '짖', '속', '활', '자', '까', '싸', '따',
+                #        '쑥', '뿍', '갉', '밝', '꺍', '뱖', '쏾', '쒧']
             elif args.type == 'cz':
                 # 今国意我永然警酬随
                 arr = ['今', '国', '意', '我', '永', '然', '警', '酬', '随']
             else:
-                # arr = ['Q', 'Z', 'X', 'K', 'g', 'f', 'j', 'y', 'O', 'W', 'M', 'p', 'b', 't']
+                arr = ['Q', 'Z', 'X', 'K', 'g', 'f', 'j', 'y', 'O', 'W', 'M', 'p', 'b', 't']
                 # H O C T X
-                arr = ['H', 'O', 'C', 'T', 'X']
+                # arr = ['H', 'O', 'C', 'T', 'X']
             # 각 문자에 대해 이미지 생성
             generator = FontImageGenerator()
             for idx, char in enumerate(arr, start=1):
@@ -156,7 +157,9 @@ def main():
             elif args.type == 'cz':
                 generator.create_sumnail_image('今国意我永然警酬随', fontPath, uuid, sumnailPath)
             else:
-                generator.create_sumnail_image('H O C T X', fontPath, uuid, sumnailPath)
+                # arr to text
+                arr2text = ' '.join(arr)
+                generator.create_sumnail_image(arr2text, fontPath, uuid, sumnailPath)
 
 
 if __name__ == "__main__":
