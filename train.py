@@ -44,8 +44,7 @@ def create_config(image_dir):
         "general": {
             "enable_bucket": True,  # 단순 로고는 bucket 불필요
             "shuffle_caption": False,  # 캡션 순서 고정
-            "keep_tokens": 2,        # 기본 스타일 토큰 유지
-            "clip_skip": 2  # CLIP 스킵 추가
+            "keep_tokens": 3
                                     
         },
         "datasets": [
