@@ -89,8 +89,7 @@ def main():
             '--network_module=networks.lora '
             '--network_dim=256 '
             '--network_alpha=128 '
-            '--conv_dim=48 '  # Conv2d 레이어 추가 - 폰트의 시각적 특징 더 잘 포착
-            '--conv_alpha=24 '  # Conv 레이어의 알파값 설정
+            f'--network_args "conv_dim=48" "conv_alpha=24" '  # conv 설정을 network_args로 이동
             '--loss_type=smooth_l1 '  # 추가: Huber/smooth L1/MSE 손실 함수 선택
             '--huber_schedule=snr '  # 추가: 스케줄링 방법 선택
             '--huber_c=0.5 '  # 추가: Huber 손실 파라미터
