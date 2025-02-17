@@ -97,6 +97,7 @@ def main():
             '--optimizer_type=Lion '
             '--learning_rate=1e-5 '  # 5e-6에서 상향 - 더 적극적인 학습
             '--max_train_epochs=100 '  # 60에서 100으로 증
+            '--train_batch_size=1 '  # 배치 사이즈 감소
             '--lr_scheduler=cosine_with_restarts '
             '--save_state_on_train_end '
             '--save_precision=fp16 '
