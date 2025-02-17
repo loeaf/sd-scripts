@@ -86,9 +86,9 @@ def main():
             f'CUDA_VISIBLE_DEVICES=1 {args.base_command} '
             '--pretrained_model_name_or_path="/home/user/data/stable-diffusion-webui-forge/models/Stable-diffusion/Anything-v4.5-pruned.safetensors" '
             '--network_module=networks.lora '
-            '--network_dim=256 '
-            '--network_alpha=128 '
-            f'--network_args "conv_dim=48" "conv_alpha=24" '  # conv 설정을 network_args로 이동
+            '--network_args "conv_dim=32" "conv_alpha=16" '  # 크기 감소
+            '--network_dim=128 '  # 256에서 128로 감소
+            '--network_alpha=64 '  # 128에서 64로 감소
             '--loss_type=smooth_l1 '  # 추가: Huber/smooth L1/MSE 손실 함수 선택
             '--huber_schedule=snr '  # 추가: 스케줄링 방법 선택
             '--huber_c=0.5 '  # 추가: Huber 손실 파라미터
