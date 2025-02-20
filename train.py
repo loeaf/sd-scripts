@@ -82,6 +82,9 @@ def main():
         # Base command without config path
         # '--pretrained_model_name_or_path="/home/user/data/stable-diffusion-webui-forge/models/Stable-diffusion/Anything-v4.5-pruned.safetensors" '
         # '--pretrained_model_name_or_path="/home/user/data/stable-diffusion-webui-forge/models/Stable-diffusion/sd_2-1.safetensors" '
+
+        # '--learning_rate=1e-4 '
+        # '--learning_rate=5e-5 '
         base_cmd = (
             f'CUDA_VISIBLE_DEVICES=1 {args.base_command} '
             '--pretrained_model_name_or_path="/home/user/data/stable-diffusion-webui-forge/models/Stable-diffusion/Anything-v4.5-pruned.safetensors" '
@@ -95,7 +98,7 @@ def main():
             f'--output_dir="{lora_path}" '
             '--noise_offset=0.1 '
             '--optimizer_type=Lion '
-            '--learning_rate=5e-6 '  # 5e-6에서 상향 - 더 적극적인 학습
+            '--learning_rate=1e-5 '  # 5e-6에서 상향 - 더 적극적인 학습
             '--max_train_epochs=100 '  # 60에서 100으로 증
             '--lr_scheduler=cosine_with_restarts '
             '--save_state_on_train_end '
