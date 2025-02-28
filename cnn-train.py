@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
-from PIL import Image, ImageDraw, ImageFont, UnidentifiedImageError
+from PIL import Image, ImageDraw, ImageFont
 from dataclasses import dataclass
 from typing import Tuple, List, Dict, Optional
 import random
@@ -17,83 +17,140 @@ from tqdm import tqdm
 from multiprocessing import Pool, cpu_count
 import glob
 import shutil
+from collections import Counter
+
+
+# 먼저 CSV 파일에서 filtername 추출 및 클래스 정의 함수
+def extract_filternames_from_csv(csv_path):
+    """CSV 파일에서 고유한 filtername을 추출하고 클래스 매핑을 생성합니다."""
+    print(f"CSV 파일에서 filtername 분석 중: {csv_path}")
+
+    # CSV 파일 읽기
+    df = pd.read_csv(csv_path)
+
+    # filtername 컬럼 추출
+    if 'filtername' not in df.columns:
+        raise ValueError(f"CSV 파일에 'filtername' 컬럼이 없습니다: {csv_path}")
+
+    # 모든 필터네임 수집
+    all_filternames = []
+    for idx, row in df.iterrows():
+        if pd.isna(row['filtername']) or not isinstance(row['filtername'], str):
+            print(f"Warning: 행 {idx}에 유효하지 않은 filtername이 있습니다.")
+            continue
+
+        # 쉼표로 분리하고 공백 제거
+        names = [name.strip() for name in row['filtername'].split(',')]
+        all_filternames.extend(names)
+
+    # 고유한 필터네임 찾기
+    unique_filternames = sorted(set(filter(None, all_filternames)))
+
+    print(f"총 {len(unique_filternames)}개의 고유한 filtername을 찾았습니다.")
+
+    # 클래스 매핑 생성
+    filtername_to_label = {name: idx for idx, name in enumerate(unique_filternames)}
+
+    # 각 클래스 당 샘플 수 계산
+    class_counts = Counter(all_filternames)
+
+    # 클래스 정보를 파일로 저장 (디버깅용)
+    with open('filter_classes.txt', 'w', encoding='utf-8') as f:
+        f.write(f"총 클래스 수: {len(unique_filternames)}\n\n")
+        f.write("클래스 ID, 필터네임, 샘플 수\n")
+        for name, idx in filtername_to_label.items():
+            f.write(f"{idx}, {name}, {class_counts[name]}\n")
+
+    print(f"클래스 정보가 'filter_classes.txt'에 저장되었습니다.")
+
+    return unique_filternames, filtername_to_label, class_counts
 
 
 # Function for multiprocessing - needs to be at module level
 def create_unicode_font_image(params):
     """Generate an image with a single Unicode character using the specified font"""
-    char, font_path, font_id, family_name, char_index, image_size, output_dir = params
+    char, font_path, font_id, filternames, char_index, image_size, output_dir = params
 
-    # Skip if the file already exists to avoid redundant work
-    unicode_code = f"U{ord(char):04X}"
-    out_dir = os.path.join(output_dir, str(font_id))
-    os.makedirs(out_dir, exist_ok=True)
-    image_path = os.path.join(out_dir, f"{family_name}_{unicode_code}_{char_index}.png")
+    # 결과를 저장할 리스트
+    results = []
 
-    # Skip if file already exists (for resuming interrupted processing)
-    if os.path.exists(image_path):
-        # Verify the file is valid
-        try:
-            with Image.open(image_path) as img:
-                # Just accessing a property to verify image is valid
-                img_format = img.format
-            return image_path, font_id, family_name
-        except Exception:
-            # Remove corrupted file
+    # 각 필터네임에 대해 이미지 생성
+    for filtername in filternames:
+        # 필터네임을 폴더 이름으로 안전하게 변환
+        safe_filtername = filtername.replace('/', '_').replace(' ', '_')
+
+        # Skip if the file already exists to avoid redundant work
+        unicode_code = f"U{ord(char):04X}"
+        out_dir = os.path.join(output_dir, safe_filtername)
+        os.makedirs(out_dir, exist_ok=True)
+        image_path = os.path.join(out_dir, f"{font_id}_{unicode_code}_{char_index}.png")
+
+        # Skip if file already exists (for resuming interrupted processing)
+        if os.path.exists(image_path):
+            # Verify the file is valid
             try:
-                os.remove(image_path)
-            except:
-                pass
+                with Image.open(image_path) as img:
+                    # Just accessing a property to verify image is valid
+                    img_format = img.format
+                results.append((image_path, filtername))
+                continue
+            except Exception:
+                # Remove corrupted file
+                try:
+                    os.remove(image_path)
+                except:
+                    pass
 
-    # Check if font file exists
-    if not os.path.exists(font_path):
-        return None, font_id, family_name
+        # Check if font file exists
+        if not os.path.exists(font_path):
+            continue
 
-    image = Image.new('RGB', image_size, color='white')
-    draw = ImageDraw.Draw(image)
+        image = Image.new('RGB', image_size, color='white')
+        draw = ImageDraw.Draw(image)
 
-    try:
-        # Use a fixed font size instead of adaptive sizing for speed
-        font_size = int(min(image_size) * 0.7)
-        font = ImageFont.truetype(font_path, font_size)
-
-        # Center the character
-        bbox = draw.textbbox((0, 0), char, font=font)
-        char_width = bbox[2] - bbox[0]
-        char_height = bbox[3] - bbox[1]
-        position = ((image_size[0] - char_width) // 2 - bbox[0],
-                    (image_size[1] - char_height) // 2 - bbox[1])
-
-        # Draw the character on the image
-        draw.text(position, char, font=font, fill='black')
-
-        # Save the image
-        image.save(image_path)
-
-        # Verify the image was saved correctly
         try:
-            with Image.open(image_path) as img:
-                img_format = img.format
-            return image_path, font_id, family_name
-        except Exception:
-            # Remove corrupted file
-            try:
-                os.remove(image_path)
-            except:
-                pass
-            return None, font_id, family_name
+            # Use a fixed font size instead of adaptive sizing for speed
+            font_size = int(min(image_size) * 0.7)
+            font = ImageFont.truetype(font_path, font_size)
 
-    except Exception as e:
-        return None, font_id, family_name
+            # Center the character
+            bbox = draw.textbbox((0, 0), char, font=font)
+            char_width = bbox[2] - bbox[0]
+            char_height = bbox[3] - bbox[1]
+            position = ((image_size[0] - char_width) // 2 - bbox[0],
+                        (image_size[1] - char_height) // 2 - bbox[1])
+
+            # Draw the character on the image
+            draw.text(position, char, font=font, fill='black')
+
+            # Save the image
+            image.save(image_path)
+
+            # Verify the image was saved correctly
+            try:
+                with Image.open(image_path) as img:
+                    img_format = img.format
+                results.append((image_path, filtername))
+            except Exception:
+                # Remove corrupted file
+                try:
+                    os.remove(image_path)
+                except:
+                    pass
+
+        except Exception as e:
+            pass
+
+    return results
 
 
 # Font Image Generator
 @dataclass
 class FontImageGenerator:
     image_size: Tuple[int, int] = (128, 128)  # Reduced size for faster training
-    output_dir: str = "datasets/font_dataset"
+    output_dir: str = "datasets/filter_dataset"
     korean_unicode_file: str = "union_korean_unicodes.json"
-    num_samples_per_font: int = 20  # Reduced from 50 to 20 for faster processing
+    num_samples_per_font: int = 20  # Samples per font
     num_processes: int = None  # Will default to number of CPU cores
     clean_output_dir: bool = False  # Set to True to remove existing dataset
 
@@ -125,12 +182,12 @@ class FontImageGenerator:
 
     def verify_dataset(self):
         """Verify all images in the dataset are valid, removing corrupted ones"""
-        print("Verifying dataset integrity...")
+        print("데이터셋 무결성 검증 중...")
         count_before = len(glob.glob(os.path.join(self.output_dir, "**/*.png"), recursive=True))
 
         corrupted = 0
         for img_path in tqdm(glob.glob(os.path.join(self.output_dir, "**/*.png"), recursive=True),
-                             desc="Checking images"):
+                             desc="이미지 확인 중"):
             try:
                 with Image.open(img_path) as img:
                     # Just accessing a property to verify image
@@ -144,23 +201,31 @@ class FontImageGenerator:
                     pass
 
         count_after = len(glob.glob(os.path.join(self.output_dir, "**/*.png"), recursive=True))
-        print(f"Dataset verification: Found and removed {corrupted} corrupted images")
-        print(f"Dataset size: {count_before} -> {count_after} images")
+        print(f"데이터셋 검증: {corrupted}개의 손상된 이미지를 발견하고 제거했습니다.")
+        print(f"데이터셋 크기: {count_before} -> {count_after} 이미지")
 
     def generate_dataset_from_csv(self, csv_path: str):
         """Generate a dataset from the font CSV file using multiprocessing"""
         start_time = time.time()
 
+        # CSV 파일에서 필터네임 추출 및 클래스 매핑 생성
+        unique_filternames, filtername_to_label, class_counts = extract_filternames_from_csv(csv_path)
+
         # Read the CSV file
         df = pd.read_csv(csv_path)
 
-        # Filter out rows where file doesn't exist
+        # Filter out rows where file doesn't exist or filtername is invalid
         valid_rows = []
         for _, row in df.iterrows():
-            if os.path.exists(row['FilePath']):
-                valid_rows.append(row)
-            else:
+            if not os.path.exists(row['FilePath']):
                 print(f"Warning: Font file not found: {row['FilePath']}")
+                continue
+
+            if pd.isna(row['filtername']) or not isinstance(row['filtername'], str):
+                print(f"Warning: Invalid filtername for font_id {row['font_id']}")
+                continue
+
+            valid_rows.append(row)
 
         if len(valid_rows) == 0:
             print("Error: No valid font files found!")
@@ -169,23 +234,22 @@ class FontImageGenerator:
         df_valid = pd.DataFrame(valid_rows)
         print(f"Found {len(df_valid)} valid font files out of {len(df)} total")
 
-        # Create a label mapping and save it
-        unique_families = df_valid['FamilyName'].unique()
-        label_map = {family: idx for idx, family in enumerate(unique_families)}
-
-        with open('label.txt', 'w', encoding='utf-8') as f:
-            for family, idx in label_map.items():
-                f.write(f"{idx},{family}\n")
-
-        print(f"Label mapping saved to label.txt with {len(label_map)} classes")
-
         # Prepare tasks for parallel processing
         tasks = []
 
         for _, row in df_valid.iterrows():
             font_id = row['font_id']
             font_path = row['FilePath']
-            family_name = row['FamilyName']
+
+            # 필터네임을 쉼표로 분리
+            if pd.isna(row['filtername']) or not isinstance(row['filtername'], str):
+                continue
+
+            filternames = [name.strip() for name in row['filtername'].split(',') if name.strip()]
+
+            # 유효한 필터네임이 없으면 건너뛰기
+            if not filternames:
+                continue
 
             # Use a fixed set of characters for all fonts to reduce variability
             if len(self.korean_chars) <= self.num_samples_per_font:
@@ -197,10 +261,10 @@ class FontImageGenerator:
 
             for i, char in enumerate(chars_to_use):
                 # Include image_size and output_dir in the parameters for the standalone function
-                tasks.append((char, font_path, font_id, family_name, i, self.image_size, self.output_dir))
+                tasks.append((char, font_path, font_id, filternames, i, self.image_size, self.output_dir))
 
         # Generate images in parallel using multiprocessing
-        print(f"Generating {len(tasks)} images using {self.num_processes} processes...")
+        print(f"Generating images for {len(tasks)} tasks using {self.num_processes} processes...")
 
         image_paths = []
         labels = []
@@ -209,25 +273,42 @@ class FontImageGenerator:
         with Pool(processes=self.num_processes) as pool:
             # Use imap_unordered with chunking for better performance
             chunksize = max(1, len(tasks) // (self.num_processes * 10))
-            results = list(tqdm(
+            all_results = list(tqdm(
                 pool.imap_unordered(create_unicode_font_image, tasks, chunksize=chunksize),
                 total=len(tasks),
-                desc="Generating images"
+                desc="이미지 생성 중"
             ))
 
-            # Process results
-            for img_path, font_id, family_name in results:
-                if img_path:
-                    image_paths.append(img_path)
-                    labels.append(label_map[family_name])
+            # Process results - each result is a list of tuples (img_path, filtername)
+            for results in all_results:
+                for img_path, filtername in results:
+                    if img_path and filtername in filtername_to_label:
+                        image_paths.append(img_path)
+                        labels.append(filtername_to_label[filtername])
 
         # Verify dataset integrity
         self.verify_dataset()
 
+        # Check final class distribution
+        label_counts = Counter(labels)
+        print("\n최종 클래스 분포:")
+        for name, idx in filtername_to_label.items():
+            count = label_counts.get(idx, 0)
+            print(f"  {name}: {count} 이미지")
+
+        # Save the final distribution to file
+        with open('final_class_distribution.txt', 'w', encoding='utf-8') as f:
+            f.write("클래스 ID, 필터네임, 생성된 이미지 수\n")
+            for name, idx in filtername_to_label.items():
+                count = label_counts.get(idx, 0)
+                f.write(f"{idx}, {name}, {count}\n")
+
+        print(f"최종 클래스 분포가 'final_class_distribution.txt'에 저장되었습니다.")
+
         end_time = time.time()
         print(
-            f"Generated {len(image_paths)} images for {len(label_map)} font families in {end_time - start_time:.2f} seconds")
-        return image_paths, labels, label_map
+            f"Generated {len(image_paths)} images for {len(filtername_to_label)} filter types in {end_time - start_time:.2f} seconds")
+        return image_paths, labels, filtername_to_label
 
 
 # On-the-fly Dataset class with error handling
@@ -272,34 +353,34 @@ class FontDataset(Dataset):
             return image, self.labels[idx]
 
 
-# CNN Model Architecture
-class FontClassifierCNN(nn.Module):
+# CNN Model Architecture for filtername classification
+class FilterClassifierCNN(nn.Module):
     def __init__(self, num_classes):
-        super(FontClassifierCNN, self).__init__()
+        super(FilterClassifierCNN, self).__init__()
 
-        # Convolutional layers with reduced parameters
+        # Convolutional layers
         self.conv_layers = nn.Sequential(
             # First convolutional block
-            nn.Conv2d(3, 16, kernel_size=3, padding=1),
-            nn.BatchNorm2d(16),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-
-            # Second convolutional block
-            nn.Conv2d(16, 32, kernel_size=3, padding=1),
+            nn.Conv2d(3, 32, kernel_size=3, padding=1),
             nn.BatchNorm2d(32),
             nn.ReLU(),
             nn.MaxPool2d(2),
 
-            # Third convolutional block
+            # Second convolutional block
             nn.Conv2d(32, 64, kernel_size=3, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(),
             nn.MaxPool2d(2),
 
-            # Fourth convolutional block
+            # Third convolutional block
             nn.Conv2d(64, 128, kernel_size=3, padding=1),
             nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+
+            # Fourth convolutional block
+            nn.Conv2d(128, 256, kernel_size=3, padding=1),
+            nn.BatchNorm2d(256),
             nn.ReLU(),
             nn.MaxPool2d(2),
         )
@@ -307,10 +388,10 @@ class FontClassifierCNN(nn.Module):
         # Fully connected layers
         self.fc_layers = nn.Sequential(
             nn.Dropout(0.5),
-            nn.Linear(128 * 8 * 8, 256),  # Reduced from 512 to 256
+            nn.Linear(256 * 8 * 8, 512),
             nn.ReLU(),
             nn.Dropout(0.5),
-            nn.Linear(256, num_classes)
+            nn.Linear(512, num_classes)
         )
 
     def forward(self, x):
@@ -321,7 +402,7 @@ class FontClassifierCNN(nn.Module):
 
 
 # Training function
-def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=10, patience=5, device='cuda'):
+def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=50, patience=10, device='cuda'):
     model.to(device)
     best_val_acc = 0.0
     best_epoch = 0
@@ -403,7 +484,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
                 best_val_acc = val_acc
                 best_epoch = epoch
                 early_stopping_counter = 0
-                torch.save(model.state_dict(), 'best_font_classifier.pth')
+                torch.save(model.state_dict(), 'best_filter_classifier.pth')
                 print(f'Model saved with Val Acc: {val_acc:.2f}%')
             else:
                 early_stopping_counter += 1
@@ -424,6 +505,63 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
     return model, history
 
 
+# Model evaluation function
+def evaluate_model(model, test_loader, device='cuda', label_map=None):
+    model.eval()
+    correct = 0
+    total = 0
+
+    # For confusion matrix
+    all_predictions = []
+    all_labels = []
+
+    with torch.no_grad():
+        for images, labels in test_loader:
+            images, labels = images.to(device), labels.to(device)
+            outputs = model(images)
+            _, predicted = torch.max(outputs.data, 1)
+
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+            all_predictions.extend(predicted.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+
+    accuracy = 100 * correct / total
+    print(f'Test Accuracy: {accuracy:.2f}%')
+
+    # Print per-class accuracy
+    if label_map:
+        idx_to_name = {idx: name for name, idx in label_map.items()}
+        class_correct = {}
+        class_total = {}
+
+        for pred, label in zip(all_predictions, all_labels):
+            label_name = idx_to_name[label]
+            if label_name not in class_correct:
+                class_correct[label_name] = 0
+                class_total[label_name] = 0
+
+            class_total[label_name] += 1
+            if pred == label:
+                class_correct[label_name] += 1
+
+        print("\n클래스별 정확도:")
+        for name in sorted(class_correct.keys()):
+            acc = 100 * class_correct[name] / max(1, class_total[name])
+            print(f"{name}: {acc:.2f}% ({class_correct[name]}/{class_total[name]})")
+
+        # Save detailed evaluation results
+        with open('evaluation_results.txt', 'w', encoding='utf-8') as f:
+            f.write(f"전체 테스트 정확도: {accuracy:.2f}%\n\n")
+            f.write("클래스별 정확도:\n")
+            for name in sorted(class_correct.keys()):
+                acc = 100 * class_correct[name] / max(1, class_total[name])
+                f.write(f"{name}: {acc:.2f}% ({class_correct[name]}/{class_total[name]})\n")
+
+    return accuracy, all_predictions, all_labels
+
+
 # Main execution function
 def main():
     # Set random seed for reproducibility
@@ -438,7 +576,7 @@ def main():
     # Initialize the generator and create dataset
     generator = FontImageGenerator(
         korean_unicode_file="union_korean_unicodes.json",
-        num_samples_per_font=15,  # Reduced for faster processing
+        num_samples_per_font=20,
         num_processes=cpu_count(),  # Use all available CPU cores
         clean_output_dir=False  # Set to True to start fresh
     )
@@ -453,20 +591,29 @@ def main():
 
     # Split the dataset
     try:
-        train_paths, val_paths, train_labels, val_labels = train_test_split(
-            image_paths, labels, test_size=0.2, random_state=42, stratify=labels
+        train_paths, temp_paths, train_labels, temp_labels = train_test_split(
+            image_paths, labels, test_size=0.3, random_state=42, stratify=labels
+        )
+
+        val_paths, test_paths, val_labels, test_labels = train_test_split(
+            temp_paths, temp_labels, test_size=0.5, random_state=42, stratify=temp_labels
         )
     except ValueError as e:
         print(f"Error in train/test split: {e}")
-        print("Using simple 80/20 split without stratification")
-        split_idx = int(0.8 * len(image_paths))
-        train_paths, val_paths = image_paths[:split_idx], image_paths[split_idx:]
-        train_labels, val_labels = labels[:split_idx], labels[split_idx:]
+        print("Using simple split without stratification")
+        total = len(image_paths)
+        train_idx = int(0.7 * total)
+        val_idx = int(0.85 * total)
+
+        train_paths, train_labels = image_paths[:train_idx], labels[:train_idx]
+        val_paths, val_labels = image_paths[train_idx:val_idx], labels[train_idx:val_idx]
+        test_paths, test_labels = image_paths[val_idx:], labels[val_idx:]
 
     # Define transformations
     train_transform = transforms.Compose([
         transforms.RandomHorizontalFlip(),
-        transforms.RandomRotation(1),
+        transforms.RandomRotation(10),
+        transforms.RandomAffine(degrees=0, translate=(0.1, 0.1), scale=(0.9, 1.1)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
@@ -476,9 +623,10 @@ def main():
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    # Create datasets and dataloaders with robust error handling
+    # Create datasets and dataloaders
     train_dataset = FontDataset(train_paths, train_labels, transform=train_transform)
     val_dataset = FontDataset(val_paths, val_labels, transform=val_transform)
+    test_dataset = FontDataset(test_paths, test_labels, transform=val_transform)
 
     # Check if datasets are valid
     if len(train_dataset) == 0 or len(val_dataset) == 0:
@@ -487,18 +635,19 @@ def main():
 
     print(f"Train dataset size: {len(train_dataset)}")
     print(f"Validation dataset size: {len(val_dataset)}")
+    print(f"Test dataset size: {len(test_dataset)}")
 
-    # Use a smaller batch size and fewer workers for stability
-    train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=2, pin_memory=True)
-    val_loader = DataLoader(val_dataset, batch_size=256, shuffle=False, num_workers=2, pin_memory=True)
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4, pin_memory=True)
+    val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, num_workers=4, pin_memory=True)
+    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=4, pin_memory=True)
 
     # Initialize the model
     num_classes = len(label_map)
-    model = FontClassifierCNN(num_classes)
+    model = FilterClassifierCNN(num_classes)
 
     # Define loss function and optimizer
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
 
     # Train the model
     print("Starting training...")
@@ -509,21 +658,33 @@ def main():
             val_loader=val_loader,
             criterion=criterion,
             optimizer=optimizer,
-            num_epochs=20000,
-            patience=5,
+            num_epochs=50,
+            patience=10,
             device=device
         )
 
         print("Training completed!")
 
+        # Evaluate on test set
+        print("\nEvaluating on test set...")
+        # Reverse the label map for evaluation
+        reverse_label_map = {idx: name for name, idx in label_map.items()}
+        test_acc, all_preds, all_labels = evaluate_model(
+            model=trained_model,
+            test_loader=test_loader,
+            device=device,
+            label_map=reverse_label_map
+        )
+
         # Save the final model
         torch.save({
             'model_state_dict': trained_model.state_dict(),
             'label_map': label_map,
-            'history': history
-        }, 'font_classifier_final.pth')
+            'history': history,
+            'test_accuracy': test_acc
+        }, 'filter_classifier_final.pth')
 
-        print("Model saved to font_classifier_final.pth")
+        print("Model saved to filter_classifier_final.pth")
 
     except Exception as e:
         print(f"Training failed with error: {e}")
@@ -531,8 +692,8 @@ def main():
         torch.save({
             'model_state_dict': model.state_dict(),
             'label_map': label_map,
-        }, 'font_classifier_partial.pth')
-        print("Partial model saved to font_classifier_partial.pth")
+        }, 'filter_classifier_partial.pth')
+        print("Partial model saved to filter_classifier_partial.pth")
 
 
 if __name__ == "__main__":
