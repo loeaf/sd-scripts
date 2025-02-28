@@ -73,7 +73,7 @@ class FontImageGenerator:
 
         # Set number of processes if not specified
         if self.num_processes is None:
-            self.num_processes = cpu_count()
+            self.num_processes = cpu_count() - 5
 
         # Load Korean Unicode characters from JSON file
         try:
