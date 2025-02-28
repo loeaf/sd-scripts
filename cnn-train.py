@@ -489,8 +489,8 @@ def main():
     print(f"Validation dataset size: {len(val_dataset)}")
 
     # Use a smaller batch size and fewer workers for stability
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=2, pin_memory=True)
-    val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False, num_workers=2, pin_memory=True)
+    train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=2, pin_memory=True)
+    val_loader = DataLoader(val_dataset, batch_size=256, shuffle=False, num_workers=2, pin_memory=True)
 
     # Initialize the model
     num_classes = len(label_map)
@@ -509,7 +509,7 @@ def main():
             val_loader=val_loader,
             criterion=criterion,
             optimizer=optimizer,
-            num_epochs=15,
+            num_epochs=20000,
             patience=5,
             device=device
         )
