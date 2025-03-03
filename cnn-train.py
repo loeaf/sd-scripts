@@ -110,8 +110,11 @@ def extract_filternames_from_csv(csv_path):
 
 # Function for multiprocessing - needs to be at module level
 def create_unicode_font_image(params):
-    """Generate an image with a single Unicode character using the specified font"""
-    char, font_path, font_id, filternames, char_index, image_size, output_dir = params
+    """Generate an image with 1-4 Unicode characters using the specified font"""
+    chars, font_path, font_id, filternames, char_index, image_size, output_dir = params
+
+    # chars는 이제 1~4글자의 문자열
+    text = chars  # 여러 글자로 구성된 텍스트
 
     # 결과를 저장할 리스트
     results = []
@@ -121,11 +124,11 @@ def create_unicode_font_image(params):
         # 필터네임을 폴더 이름으로 안전하게 변환
         safe_filtername = filtername.replace('/', '_').replace(' ', '_')
 
-        # Skip if the file already exists to avoid redundant work
-        unicode_code = f"U{ord(char):04X}"
+        # 파일명을 안전하게 만들기 위해 텍스트의 유니코드 코드 포인트 사용
+        text_code = "_".join([f"U{ord(c):04X}" for c in text])
         out_dir = os.path.join(output_dir, safe_filtername)
         os.makedirs(out_dir, exist_ok=True)
-        image_path = os.path.join(out_dir, f"{font_id}_{unicode_code}_{char_index}.png")
+        image_path = os.path.join(out_dir, f"{font_id}_{text_code}_{char_index}.png")
 
         # Skip if file already exists (for resuming interrupted processing)
         if os.path.exists(image_path):
@@ -150,20 +153,38 @@ def create_unicode_font_image(params):
         image = Image.new('RGB', image_size, color='white')
         draw = ImageDraw.Draw(image)
 
+        # 이미지 생성 및 글자 그리기 부분만 수정
         try:
-            # Use a fixed font size instead of adaptive sizing for speed
+            # 텍스트 크기에 맞게 폰트 크기 조정
             font_size = int(min(image_size) * 0.7)
             font = ImageFont.truetype(font_path, font_size)
 
-            # Center the character
-            bbox = draw.textbbox((0, 0), char, font=font)
-            char_width = bbox[2] - bbox[0]
-            char_height = bbox[3] - bbox[1]
-            position = ((image_size[0] - char_width) // 2 - bbox[0],
-                        (image_size[1] - char_height) // 2 - bbox[1])
+            # 폰트 크기 자동 조정 (텍스트 길이에 따라)
+            while True:
+                bbox = draw.textbbox((0, 0), text, font=font)
+                text_width = bbox[2] - bbox[0]
+                text_height = bbox[3] - bbox[1]
 
-            # Draw the character on the image
-            draw.text(position, char, font=font, fill='black')
+                # 텍스트가 이미지 크기의 80%를 넘지 않도록 조정
+                if text_width > image_size[0] * 0.8 or text_height > image_size[1] * 0.8:
+                    font_size -= 1
+                    font = ImageFont.truetype(font_path, font_size)
+                else:
+                    break
+
+                # 너무 작아지지 않도록 제한
+                if font_size < 10:
+                    break
+
+            # 텍스트 중앙 정렬
+            bbox = draw.textbbox((0, 0), text, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            position = ((image_size[0] - text_width) // 2 - bbox[0],
+                        (image_size[1] - text_height) // 2 - bbox[1])
+
+            # 텍스트 그리기
+            draw.text(position, text, font=font, fill='black')
 
             # Save the image
             image.save(image_path)
@@ -293,17 +314,39 @@ class FontImageGenerator:
             if not filternames:
                 continue
 
-            # Use a fixed set of characters for all fonts to reduce variability
-            if len(self.korean_chars) <= self.num_samples_per_font:
-                chars_to_use = self.korean_chars
-            else:
-                # Use the same random seed for all fonts to ensure consistency
-                random.seed(42)
-                chars_to_use = random.sample(self.korean_chars, self.num_samples_per_font)
+            # 1글자, 2글자, 3글자, 4글자 텍스트 조합 생성
+            texts_to_use = []
 
-            for i, char in enumerate(chars_to_use):
-                # Include image_size and output_dir in the parameters for the standalone function
-                tasks.append((char, font_path, font_id, filternames, i, self.image_size, self.output_dir))
+            # 1글자 (기존과 동일)
+            if len(self.korean_chars) <= self.num_samples_per_font // 4:
+                single_chars = self.korean_chars
+            else:
+                random.seed(42)
+                single_chars = random.sample(self.korean_chars, self.num_samples_per_font // 4)
+
+            texts_to_use.extend([c for c in single_chars])
+
+            # 2글자 조합
+            for _ in range(self.num_samples_per_font // 4):
+                random.seed(42 + _)  # 다양한 조합을 위해 시드 변경
+                chars = random.sample(self.korean_chars, 2)
+                texts_to_use.append(''.join(chars))
+
+            # 3글자 조합
+            for _ in range(self.num_samples_per_font // 4):
+                random.seed(142 + _)
+                chars = random.sample(self.korean_chars, 3)
+                texts_to_use.append(''.join(chars))
+
+            # 4글자 조합
+            for _ in range(self.num_samples_per_font // 4):
+                random.seed(242 + _)
+                chars = random.sample(self.korean_chars, 4)
+                texts_to_use.append(''.join(chars))
+
+            # 각 텍스트에 대해 이미지 생성 태스크 추가
+            for i, text in enumerate(texts_to_use):
+                tasks.append((text, font_path, font_id, filternames, i, self.image_size, self.output_dir))
 
         # Generate images in parallel using multiprocessing
         print(f"Generating images for {len(tasks)} tasks using {self.num_processes} processes...")
