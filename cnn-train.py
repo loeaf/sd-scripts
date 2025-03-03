@@ -1163,7 +1163,7 @@ def main():
         model = SimpleAttentionFilterClassifier(num_classes)
         print(f"Using Simplified Attention CNN with {num_classes} classes")
     else:
-        model = PretrainedModelClassifier(num_classes, pretrained=True)
+        model = PretrainedModelClassifier(num_classes)
         print(f"Using Pretrained ResNet18 with {num_classes} classes")
 
     # 다중 GPU 사용을 위한 코드 추가
