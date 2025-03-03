@@ -7,6 +7,27 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from PIL import Image, ImageDraw, ImageFont
+from dataclasses import dataclass
+from typing import Tuple, List, Dict, Optional
+import random
+import json
+from sklearn.model_selection import train_test_split
+import time
+from tqdm import tqdm
+from multiprocessing import Pool, cpu_count
+import glob
+import shutil
+from collections import Counter
+
+import os
+import pandas as pd
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms
+from PIL import Image, ImageDraw, ImageFont
 import cv2
 import albumentations as al
 from albumentations.pytorch import ToTensorV2
@@ -628,8 +649,266 @@ def evaluate_model(model, test_loader, device='cuda', label_map=None):
     return accuracy, all_predictions, all_labels
 
 
+
+# Font Image Generator
+@dataclass
+class FontImageGenerator:
+    image_size: Tuple[int, int] = (128, 128)  # Reduced size for faster training
+    output_dir: str = "datasets/filter_dataset"
+    korean_unicode_file: str = "union_korean_unicodes.json"
+    num_samples_per_font: int = 20  # Samples per font
+    num_processes: int = None  # Will default to number of CPU cores
+    clean_output_dir: bool = False  # Set to True to remove existing dataset
+
+    def __post_init__(self):
+        # Optionally clean output directory
+        if self.clean_output_dir and os.path.exists(self.output_dir):
+            print(f"Cleaning output directory: {self.output_dir}")
+            shutil.rmtree(self.output_dir)
+
+        os.makedirs(self.output_dir, exist_ok=True)
+
+        # Set number of processes if not specified
+        if self.num_processes is None:
+            self.num_processes = cpu_count()
+
+        # Load Korean Unicode characters from JSON file
+        try:
+            with open(self.korean_unicode_file, 'r') as f:
+                self.korean_unicodes = json.load(f)
+            print(f"Loaded {len(self.korean_unicodes)} Korean Unicode characters from {self.korean_unicode_file}")
+        except Exception as e:
+            print(f"Failed to load Korean Unicode file: {e}")
+            # Fallback to a small set of common Hangul
+            self.korean_unicodes = list(range(44032, 44032 + 100))  # First 100 Hangul syllables
+            print(f"Using fallback set of {len(self.korean_unicodes)} Korean Unicode characters")
+
+        # Convert Unicode code points to actual characters
+        self.korean_chars = [chr(code) for code in self.korean_unicodes]
+
+    def verify_dataset(self):
+        """Verify all images in the dataset are valid, removing corrupted ones"""
+        print("데이터셋 무결성 검증 중...")
+        count_before = len(glob.glob(os.path.join(self.output_dir, "**/*.png"), recursive=True))
+
+        corrupted = 0
+        for img_path in tqdm(glob.glob(os.path.join(self.output_dir, "**/*.png"), recursive=True),
+                             desc="이미지 확인 중"):
+            try:
+                with Image.open(img_path) as img:
+                    # Just accessing a property to verify image
+                    img_format = img.format
+            except Exception:
+                # Remove corrupted file
+                try:
+                    os.remove(img_path)
+                    corrupted += 1
+                except:
+                    pass
+
+        count_after = len(glob.glob(os.path.join(self.output_dir, "**/*.png"), recursive=True))
+        print(f"데이터셋 검증: {corrupted}개의 손상된 이미지를 발견하고 제거했습니다.")
+        print(f"데이터셋 크기: {count_before} -> {count_after} 이미지")
+
+    def generate_dataset_from_csv(self, csv_path: str):
+        """Generate a dataset from the font CSV file using multiprocessing"""
+        start_time = time.time()
+
+        # CSV 파일에서 필터네임 추출 및 클래스 매핑 생성
+        unique_filternames, filtername_to_label, class_counts = extract_filternames_from_csv(csv_path)
+
+        # Read the CSV file
+        df = pd.read_csv(csv_path)
+
+        # Filter out rows where file doesn't exist or filtername is invalid
+        valid_rows = []
+        for _, row in df.iterrows():
+            if not os.path.exists(row['FilePath']):
+                print(f"Warning: Font file not found: {row['FilePath']}")
+                continue
+
+            if pd.isna(row['filtername']) or not isinstance(row['filtername'], str):
+                print(f"Warning: Invalid filtername for font_id {row['font_id']}")
+                continue
+
+            valid_rows.append(row)
+
+        if len(valid_rows) == 0:
+            print("Error: No valid font files found!")
+            return [], [], {}
+
+        df_valid = pd.DataFrame(valid_rows)
+        print(f"Found {len(df_valid)} valid font files out of {len(df)} total")
+
+        # Prepare tasks for parallel processing
+        tasks = []
+
+        for _, row in df_valid.iterrows():
+            font_id = row['font_id']
+            font_path = row['FilePath']
+
+            # 필터네임을 쉼표로 분리
+            if pd.isna(row['filtername']) or not isinstance(row['filtername'], str):
+                continue
+
+            filternames = [name.strip() for name in row['filtername'].split(',') if name.strip()]
+
+            # 유효한 필터네임이 없으면 건너뛰기
+            if not filternames:
+                continue
+
+            # Use a fixed set of characters for all fonts to reduce variability
+            if len(self.korean_chars) <= self.num_samples_per_font:
+                chars_to_use = self.korean_chars
+            else:
+                # Use the same random seed for all fonts to ensure consistency
+                random.seed(42)
+                chars_to_use = random.sample(self.korean_chars, self.num_samples_per_font)
+
+            for i, char in enumerate(chars_to_use):
+                # Include image_size and output_dir in the parameters for the standalone function
+                tasks.append((char, font_path, font_id, filternames, i, self.image_size, self.output_dir))
+
+        # Generate images in parallel using multiprocessing
+        print(f"Generating images for {len(tasks)} tasks using {self.num_processes} processes...")
+
+        image_paths = []
+        labels = []
+
+        # Use multiprocessing pool with chunking for better performance
+        with Pool(processes=self.num_processes) as pool:
+            # Use imap_unordered with chunking for better performance
+            chunksize = max(1, len(tasks) // (self.num_processes * 10))
+            all_results = list(tqdm(
+                pool.imap_unordered(create_unicode_font_image, tasks, chunksize=chunksize),
+                total=len(tasks),
+                desc="이미지 생성 중"
+            ))
+
+            # Process results - each result is a list of tuples (img_path, filtername)
+            for results in all_results:
+                for img_path, filtername in results:
+                    if img_path and filtername in filtername_to_label:
+                        image_paths.append(img_path)
+                        labels.append(filtername_to_label[filtername])
+
+        # Verify dataset integrity
+        self.verify_dataset()
+
+        # Check final class distribution
+        label_counts = Counter(labels)
+        print("\n최종 클래스 분포:")
+        for name, idx in filtername_to_label.items():
+            count = label_counts.get(idx, 0)
+            print(f"  {name}: {count} 이미지")
+
+        # Save the final distribution to file
+        with open('final_class_distribution.txt', 'w', encoding='utf-8') as f:
+            f.write("클래스 ID, 필터네임, 생성된 이미지 수\n")
+            for name, idx in filtername_to_label.items():
+                count = label_counts.get(idx, 0)
+                f.write(f"{idx}, {name}, {count}\n")
+
+        print(f"최종 클래스 분포가 'final_class_distribution.txt'에 저장되었습니다.")
+
+        end_time = time.time()
+        print(
+            f"Generated {len(image_paths)} images for {len(filtername_to_label)} filter types in {end_time - start_time:.2f} seconds")
+        return image_paths, labels, filtername_to_label
+
+
+# On-the-fly Dataset class with error handling
+class FontDataset(Dataset):
+    def __init__(self, image_paths, labels, transform=None):
+        # Filter out any paths that don't exist or are corrupted
+        valid_items = []
+        for path, label in zip(image_paths, labels):
+            try:
+                if os.path.exists(path):
+                    # Try to open to verify it's a valid image
+                    with Image.open(path) as img:
+                        img_format = img.format  # Just to verify it's readable
+                    valid_items.append((path, label))
+            except Exception:
+                pass
+
+        # Unpack valid items
+        self.image_paths, self.labels = zip(*valid_items) if valid_items else ([], [])
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def __getitem__(self, idx):
+        image_path = self.image_paths[idx]
+        try:
+            image = Image.open(image_path).convert('RGB')
+            label = self.labels[idx]
+
+            if self.transform:
+                image = self.transform(image)
+
+            return image, label
+        except Exception as e:
+            # If there's still an error, return a black image with the same label
+            # This is a last resort fallback
+            print(f"Error loading image {image_path}: {e}")
+            image = Image.new('RGB', (128, 128), color='black')
+            if self.transform:
+                image = self.transform(image)
+            return image, self.labels[idx]
+
+
+# CNN Model Architecture for filtername classification
+class FilterClassifierCNN(nn.Module):
+    def __init__(self, num_classes):
+        super(FilterClassifierCNN, self).__init__()
+
+        # Convolutional layers
+        self.conv_layers = nn.Sequential(
+            # First convolutional block
+            nn.Conv2d(3, 32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+
+            # Second convolutional block
+            nn.Conv2d(32, 64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+
+            # Third convolutional block
+            nn.Conv2d(64, 128, kernel_size=3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+
+            # Fourth convolutional block
+            nn.Conv2d(128, 256, kernel_size=3, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+        )
+
+        # Fully connected layers
+        self.fc_layers = nn.Sequential(
+            nn.Dropout(0.5),
+            nn.Linear(256 * 8 * 8, 512),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(512, num_classes)
+        )
+
+    def forward(self, x):
+        x = self.conv_layers(x)
+        x = x.view(x.size(0), -1)  # Flatten
+        x = self.fc_layers(x)
+        return x
+
 # Main execution function
 def main():
+
     # Set random seed for reproducibility
     torch.manual_seed(42)
     np.random.seed(42)
@@ -691,5 +970,67 @@ def main():
 
     print(f"Train dataset size: {len(train_dataset)}")
     print(f"Validation dataset size: {len(val_dataset)}")
+    print(f"Test dataset size: {len(test_dataset)}")
 
-main()
+    train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=4, pin_memory=True)
+    val_loader = DataLoader(val_dataset, batch_size=256, shuffle=False, num_workers=4, pin_memory=True)
+    test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=4, pin_memory=True)
+
+    # Initialize the model
+    num_classes = len(label_map)
+    model = FilterClassifierCNN(num_classes)
+
+    # Define loss function and optimizer
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
+
+    # Train the model
+    print("Starting training...")
+    try:
+        trained_model, history = train_model(
+            model=model,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            criterion=criterion,
+            optimizer=optimizer,
+            num_epochs=50000,
+            patience=1000,
+            device=device
+        )
+
+        print("Training completed!")
+
+        # Evaluate on test set
+        print("\nEvaluating on test set...")
+        # Reverse the label map for evaluation
+        reverse_label_map = {idx: name for name, idx in label_map.items()}
+        test_acc, all_preds, all_labels = evaluate_model(
+            model=trained_model,
+            test_loader=test_loader,
+            device=device,
+            label_map=reverse_label_map
+        )
+
+        # Save the final model
+        torch.save({
+            'model_state_dict': trained_model.state_dict(),
+            'label_map': label_map,
+            'history': history,
+            'test_accuracy': test_acc
+        }, 'filter_classifier_final.pth')
+
+        print("Model saved to filter_classifier_final.pth")
+
+    except Exception as e:
+        print(f"Training failed with error: {e}")
+        # Save the model anyway in case of partial training
+        torch.save({
+            'model_state_dict': model.state_dict(),
+            'label_map': label_map,
+        }, 'filter_classifier_partial.pth')
+        print("Partial model saved to filter_classifier_partial.pth")
+
+
+if __name__ == "__main__":
+    # Required for multiprocessing on Windows
+    main()
