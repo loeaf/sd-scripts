@@ -437,13 +437,12 @@ def get_train_transforms(use_gray=False):
         ToTensorV2(),
     ])
 
-
 def get_val_transforms():
-    """검증 및 테스트 데이터에 대한 기본 변환"""
+    """Validation and test data transforms with proper normalization"""
     return al.Compose([
+        al.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ToTensorV2(),
     ])
-
 
 # Self-Attention Module
 class SelfAttention(nn.Module):
@@ -631,7 +630,7 @@ class AlbumentationsDataset(Dataset):
         try:
             image = cv2.imread(image_path)
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            # 항상 224x224로 리사이징
+            # Resize to target size
             image = cv2.resize(image, self.target_size, interpolation=cv2.INTER_AREA)
             label = self.labels[idx]
 
@@ -639,13 +638,16 @@ class AlbumentationsDataset(Dataset):
                 transformed = self.transforms(image=image)
                 image = transformed["image"]
             else:
-                image = torch.from_numpy(image.transpose(2, 0, 1)).float()
+                # CRITICAL FIX: Convert numpy array to float before creating tensor
+                image = torch.from_numpy(image.transpose(2, 0, 1)).float() / 255.0
 
             return image, label
         except Exception as e:
-            print(f"이미지 로딩 오류 {image_path}: {e}")
+            print(f"Image loading error {image_path}: {e}")
+            # Return a zero tensor with correct shape and TYPE
             image = np.zeros((3, *self.target_size), dtype=np.float32)
-            return torch.tensor(image), self.labels[idx]
+            return torch.tensor(image, dtype=torch.float32), self.labels[idx]
+
     def __len__(self):
         return len(self.image_paths)
 
@@ -1059,16 +1061,16 @@ def main():
     # DataLoader 생성 시 sampler 사용 (shuffle=True는 제거)
     train_loader = DataLoader(
         train_dataset,
-        batch_size=486,
+        batch_size=256,
         sampler=sampler,  # shuffle=True 대신 sampler 사용
         num_workers=4,
         pin_memory=True,
     multiprocessing_context='spawn'  # 추가: 'fork' 대신 'spawn' 사용
     )
 
-    val_loader = DataLoader(val_dataset, batch_size=486, shuffle=False, num_workers=4, pin_memory=True,
+    val_loader = DataLoader(val_dataset, batch_size=256, shuffle=False, num_workers=4, pin_memory=True,
     multiprocessing_context='spawn')
-    test_loader = DataLoader(test_dataset, batch_size=486, shuffle=False, num_workers=4, pin_memory=True,
+    test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=4, pin_memory=True,
     multiprocessing_context='spawn')
 
     print(f"Train dataset size: {len(train_dataset)}")
