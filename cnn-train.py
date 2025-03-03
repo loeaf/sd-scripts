@@ -138,129 +138,66 @@ def extract_filternames_from_csv(csv_path):
     return unique_filternames, filtername_to_label, class_counts
 
 
-# Function for multiprocessing - needs to be at module level
 def create_unicode_font_image(params):
-    """Generate an image with 1-4 Unicode characters using the specified font"""
     chars, font_path, font_id, filternames, char_index, image_size, output_dir = params
-
-    # chars는 이제 1~4글자의 문자열
-    text = chars  # 여러 글자로 구성된 텍스트
-
-    # 결과를 저장할 리스트
+    text = chars
     results = []
 
-    # 각 필터네임에 대해 이미지 생성
     for filtername in filternames:
-        # 필터네임을 폴더 이름으로 안전하게 변환
         safe_filtername = filtername.replace('/', '_').replace(' ', '_')
-
-        # 파일명을 안전하게 만들기 위해 텍스트의 유니코드 코드 포인트 사용
         text_code = "_".join([f"U{ord(c):04X}" for c in text])
         out_dir = os.path.join(output_dir, safe_filtername)
         os.makedirs(out_dir, exist_ok=True)
         image_path = os.path.join(out_dir, f"{font_id}_{text_code}_{char_index}.png")
 
-        # Skip if file already exists (for resuming interrupted processing)
         if os.path.exists(image_path):
-            # Verify the file is valid
             try:
                 with Image.open(image_path) as img:
-                    # Just accessing a property to verify image is valid
-                    img_format = img.format
-                results.append((image_path, filtername))
+                    if img.size != image_size:  # 크기 확인
+                        img = img.resize(image_size, Image.LANCZOS)
+                        img.save(image_path)
+                    results.append((image_path, filtername))
                 continue
-            except Exception:
-                # Remove corrupted file
-                try:
-                    os.remove(image_path)
-                except:
-                    pass
+            except:
+                os.remove(image_path)
 
-        # Check if font file exists
         if not os.path.exists(font_path):
             continue
 
         image = Image.new('RGB', image_size, color='white')
         draw = ImageDraw.Draw(image)
 
-        # 이미지 생성 및 글자 그리기 부분만 수정
         try:
-            # 텍스트 크기에 맞게 폰트 크기 조정
             font_size = int(min(image_size) * 0.7)
             font = ImageFont.truetype(font_path, font_size)
-
-            # 폰트 크기 자동 조정 (텍스트 길이에 따라)
             while True:
                 bbox = draw.textbbox((0, 0), text, font=font)
                 text_width = bbox[2] - bbox[0]
                 text_height = bbox[3] - bbox[1]
-
-                # 텍스트가 이미지 크기의 80%를 넘지 않도록 조정
                 if text_width > image_size[0] * 0.8 or text_height > image_size[1] * 0.8:
                     font_size -= 1
                     font = ImageFont.truetype(font_path, font_size)
                 else:
                     break
-
-                # 너무 작아지지 않도록 제한
                 if font_size < 10:
                     break
 
-            # 텍스트 중앙 정렬
             bbox = draw.textbbox((0, 0), text, font=font)
             text_width = bbox[2] - bbox[0]
             text_height = bbox[3] - bbox[1]
             position = ((image_size[0] - text_width) // 2 - bbox[0],
                         (image_size[1] - text_height) // 2 - bbox[1])
-
-            # 텍스트 그리기
             draw.text(position, text, font=font, fill='black')
-
-            # 이미지 저장
             image.save(image_path)
 
-            # 비율을 유지하면서 리사이징
+            # 크기 조정 및 저장
             with Image.open(image_path) as img:
-                # 원본 이미지의 크기
-                width, height = img.size
-
-                # 비율 계산 (가로, 세로 중 작은 비율 선택)
-                ratio = min(224 / width, 224 / height)
-
-                # 새 크기 계산
-                new_width = int(width * ratio)
-                new_height = int(height * ratio)
-
-                # 비율을 유지하면서 리사이징
-                resized_img = img.resize((new_width, new_height), Image.LANCZOS)
-
-                # 새 캔버스 생성 (흰색 배경)
-                new_img = Image.new('RGB', (224, 224), color='white')
-
-                # 이미지를 캔버스 중앙에 배치
-                paste_x = (224 - new_width) // 2
-                paste_y = (224 - new_height) // 2
-                new_img.paste(resized_img, (paste_x, paste_y))
-
-                # 리사이징된 이미지 저장
-                new_img.save(image_path)
-
-            # Verify the image was saved correctly
-            try:
-                with Image.open(image_path) as img:
-                    img_format = img.format
+                if img.size != image_size:
+                    img = img.resize(image_size, Image.LANCZOS)
+                    img.save(image_path)
                 results.append((image_path, filtername))
-            except Exception as e:
-                # Remove corrupted file and print error
-                print(f"이미지 검증 오류: {e}")
-                try:
-                    os.remove(image_path)
-                except:
-                    pass
-
         except Exception as e:
             print(f"이미지 생성 오류: {e}")
-            pass
 
     return results
 
@@ -301,28 +238,24 @@ class FontImageGenerator:
         self.korean_chars = [chr(code) for code in self.korean_unicodes]
 
     def verify_dataset(self):
-        """Verify all images in the dataset are valid, removing corrupted ones"""
-        print("데이터셋 무결성 검증 중...")
+        print("데이터셋 무결성 및 크기 검증 중...")
         count_before = len(glob.glob(os.path.join(self.output_dir, "**/*.png"), recursive=True))
+        target_size = self.image_size
 
-        corrupted = 0
-        for img_path in tqdm(glob.glob(os.path.join(self.output_dir, "**/*.png"), recursive=True),
-                             desc="이미지 확인 중"):
+        corrupted_or_resized = 0
+        for img_path in tqdm(glob.glob(os.path.join(self.output_dir, "**/*.png"), recursive=True), desc="이미지 확인 중"):
             try:
                 with Image.open(img_path) as img:
-                    # Just accessing a property to verify image
-                    img_format = img.format
-            except Exception:
-                # Remove corrupted file
-                try:
-                    os.remove(img_path)
-                    corrupted += 1
-                except:
-                    pass
+                    if img.size != target_size:
+                        img = img.resize(target_size, Image.LANCZOS)
+                        img.save(img_path)
+                        corrupted_or_resized += 1
+            except:
+                os.remove(img_path)
+                corrupted_or_resized += 1
 
         count_after = len(glob.glob(os.path.join(self.output_dir, "**/*.png"), recursive=True))
-        print(f"데이터셋 검증: {corrupted}개의 손상된 이미지를 발견하고 제거했습니다.")
-        print(f"데이터셋 크기: {count_before} -> {count_after} 이미지")
+        print(f"데이터셋 검증: {corrupted_or_resized}개의 이미지 수정/제거. 크기: {count_before} -> {count_after}")
 
     def generate_dataset_from_csv(self, csv_path: str):
         """Generate a dataset from the font CSV file using multiprocessing"""
@@ -679,62 +612,43 @@ class AttentionFilterClassifier(nn.Module):
 
 # On-the-fly Dataset class with Albumentations support
 class AlbumentationsDataset(Dataset):
-    def __init__(self, image_paths, labels, transforms=None):
-        # Filter out any paths that don't exist or are corrupted
+    def __init__(self, image_paths, labels, transforms=None, target_size=(224, 224)):
         valid_items = []
         for path, label in zip(image_paths, labels):
-            try:
-                if os.path.exists(path):
-                    # Try to open to verify it's a valid image
+            if os.path.exists(path):
+                try:
                     with Image.open(path) as img:
-                        img_format = img.format  # Just to verify it's readable
+                        img_format = img.format
                     valid_items.append((path, label))
-            except Exception:
-                pass
-
-        # Unpack valid items
+                except:
+                    pass
         self.image_paths, self.labels = zip(*valid_items) if valid_items else ([], [])
         self.transforms = transforms
+        self.target_size = target_size
 
-    def __len__(self):
-        return len(self.image_paths)
-
-    # AlbumentationsDataset 클래스에서 오류 발생 시 이미지 크기 수정
     def __getitem__(self, idx):
         image_path = self.image_paths[idx]
         try:
-            # OpenCV로 이미지 읽기
             image = cv2.imread(image_path)
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            # 항상 224x224로 리사이징
+            image = cv2.resize(image, self.target_size, interpolation=cv2.INTER_AREA)
             label = self.labels[idx]
 
             if self.transforms:
                 transformed = self.transforms(image=image)
                 image = transformed["image"]
-
-                # 중요: 타입 변환 확인 - ByteTensor를 FloatTensor로 변환
-                if isinstance(image, torch.Tensor):
-                    if image.dtype != torch.float32:
-                        image = image.float()
-                else:
-                    # 텐서가 아닌 경우 (numpy 배열 등)
-                    if isinstance(image, np.ndarray):
-                        image = torch.from_numpy(image).float()
-                    else:
-                        # 실패 시 빈 텐서 생성
-                        image = torch.zeros((3, 224, 224), dtype=torch.float32)
-
-            # transforms가 없거나 텐서로 변환하지 않는 경우
             else:
-                # 직접 텐서로 변환
                 image = torch.from_numpy(image.transpose(2, 0, 1)).float()
 
             return image, label
         except Exception as e:
             print(f"이미지 로딩 오류 {image_path}: {e}")
-            # 오류 시 빈 텐서 생성 (float32 타입)
-            image = torch.zeros((3, 224, 224), dtype=torch.float32)
-            return image, self.labels[idx]
+            image = np.zeros((3, *self.target_size), dtype=np.float32)
+            return torch.tensor(image), self.labels[idx]
+    def __len__(self):
+        return len(self.image_paths)
+
 
 
 # CNN Model Architecture for filtername classification
@@ -1147,14 +1061,14 @@ def main():
         train_dataset,
         batch_size=486,
         sampler=sampler,  # shuffle=True 대신 sampler 사용
-        num_workers=8,
+        num_workers=4,
         pin_memory=True,
     multiprocessing_context='spawn'  # 추가: 'fork' 대신 'spawn' 사용
     )
 
-    val_loader = DataLoader(val_dataset, batch_size=486, shuffle=False, num_workers=8, pin_memory=True,
+    val_loader = DataLoader(val_dataset, batch_size=486, shuffle=False, num_workers=4, pin_memory=True,
     multiprocessing_context='spawn')
-    test_loader = DataLoader(test_dataset, batch_size=486, shuffle=False, num_workers=8, pin_memory=True,
+    test_loader = DataLoader(test_dataset, batch_size=486, shuffle=False, num_workers=4, pin_memory=True,
     multiprocessing_context='spawn')
 
     print(f"Train dataset size: {len(train_dataset)}")
