@@ -1068,7 +1068,7 @@ class FontDataset(Dataset):
             # If there's still an error, return a black image with the same label
             # This is a last resort fallback
             print(f"Error loading image {image_path}: {e}")
-            image = Image.new('RGB', (128, 128), color='black')
+            image = Image.new('RGB', (244, 244), color='black')
             if self.transform:
                 image = self.transform(image)
             return image, self.labels[idx]
