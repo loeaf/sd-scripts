@@ -1072,11 +1072,14 @@ def main():
         batch_size=724,
         sampler=sampler,  # shuffle=True 대신 sampler 사용
         num_workers=8,
-        pin_memory=True
+        pin_memory=True,
+    multiprocessing_context='spawn'  # 추가: 'fork' 대신 'spawn' 사용
     )
 
-    val_loader = DataLoader(val_dataset, batch_size=724, shuffle=False, num_workers=8, pin_memory=True)
-    test_loader = DataLoader(test_dataset, batch_size=724, shuffle=False, num_workers=8, pin_memory=True)
+    val_loader = DataLoader(val_dataset, batch_size=724, shuffle=False, num_workers=8, pin_memory=True,
+    multiprocessing_context='spawn')
+    test_loader = DataLoader(test_dataset, batch_size=724, shuffle=False, num_workers=8, pin_memory=True,
+    multiprocessing_context='spawn')
 
     print(f"Train dataset size: {len(train_dataset)}")
     print(f"Validation dataset size: {len(val_dataset)}")
