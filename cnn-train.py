@@ -874,53 +874,6 @@ class FontDataset(Dataset):
             return image, self.labels[idx]
 
 
-# CNN Model Architecture for filtername classification
-class FilterClassifierCNN(nn.Module):
-    def __init__(self, num_classes):
-        super(FilterClassifierCNN, self).__init__()
-
-        # Convolutional layers
-        self.conv_layers = nn.Sequential(
-            # First convolutional block
-            nn.Conv2d(3, 32, kernel_size=3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-
-            # Second convolutional block
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-
-            # Third convolutional block
-            nn.Conv2d(64, 128, kernel_size=3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-
-            # Fourth convolutional block
-            nn.Conv2d(128, 256, kernel_size=3, padding=1),
-            nn.BatchNorm2d(256),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-        )
-
-        # Fully connected layers
-        self.fc_layers = nn.Sequential(
-            nn.Dropout(0.5),
-            nn.Linear(256 * 8 * 8, 512),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(512, num_classes)
-        )
-
-    def forward(self, x):
-        x = self.conv_layers(x)
-        x = x.view(x.size(0), -1)  # Flatten
-        x = self.fc_layers(x)
-        return x
-
 # Main execution function
 def main():
 
@@ -992,14 +945,14 @@ def main():
     # DataLoader 생성 시 sampler 사용 (shuffle=True는 제거)
     train_loader = DataLoader(
         train_dataset,
-        batch_size=256,
+        batch_size=512,
         sampler=sampler,  # shuffle=True 대신 sampler 사용
-        num_workers=4,
+        num_workers=8,
         pin_memory=True
     )
 
-    val_loader = DataLoader(val_dataset, batch_size=256, shuffle=False, num_workers=4, pin_memory=True)
-    test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=4, pin_memory=True)
+    val_loader = DataLoader(val_dataset, batch_size=512, shuffle=False, num_workers=8, pin_memory=True)
+    test_loader = DataLoader(test_dataset, batch_size=512, shuffle=False, num_workers=8, pin_memory=True)
 
     print(f"Train dataset size: {len(train_dataset)}")
     print(f"Validation dataset size: {len(val_dataset)}")
