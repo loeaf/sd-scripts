@@ -860,6 +860,59 @@ def evaluate_model(model, test_loader, device='cuda', label_map=None):
     return accuracy, all_predictions, all_labels
 
 
+# 구조가 간소화된 Attention 모델
+class SimpleAttentionFilterClassifier(nn.Module):
+    def __init__(self, num_classes):
+        super().__init__()
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(3, 64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+        self.cbam1 = CBAM(64)
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(64, 128, kernel_size=3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+        self.self_attention = SelfAttention(128)
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Dropout(0.5),
+            nn.Linear(128, num_classes)
+        )
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.cbam1(x)
+        x = self.conv2(x)
+        x = self.self_attention(x)
+        x = self.avg_pool(x)
+        x = x.view(x.size(0), -1)
+        x = self.fc(x)
+        return x
+
+
+# 사전 학습된 ResNet 기반 모델
+class PretrainedModelClassifier(nn.Module):
+    def __init__(self, num_classes, pretrained=True):
+        super().__init__()
+        # 사전 학습된 ResNet18 로드
+        from torchvision.models import resnet18
+        self.resnet = resnet18(pretrained=pretrained)
+
+        # 마지막 FC 레이어 교체
+        in_features = self.resnet.fc.in_features
+        self.resnet.fc = nn.Sequential(
+            nn.Dropout(0.5),
+            nn.Linear(in_features, num_classes)
+        )
+
+    def forward(self, x):
+        return self.resnet(x)
+
 # On-the-fly Dataset class with error handling
 class FontDataset(Dataset):
     def __init__(self, image_paths, labels, transform=None):
@@ -986,15 +1039,24 @@ def main():
     print(f"Validation dataset size: {len(val_dataset)}")
     print(f"Test dataset size: {len(test_dataset)}")
 
-    # main 함수 내에서 모델 초기화 후 적용
+    # main 함수 내에서 모델 초기화 부분 수정
     num_classes = len(label_map)
-    model = AttentionFilterClassifier(num_classes)
-    print(f"Using Attention-based CNN with {num_classes} classes")
+
+    # 모델 유형 선택 (simple_attention, pretrained_resnet)
+    model_type = 'pretrained_resnet'  # 또는 'simple_attention'
+
+    if model_type == 'simple_attention':
+        model = SimpleAttentionFilterClassifier(num_classes)
+        print(f"Using Simplified Attention CNN with {num_classes} classes")
+    else:
+        model = PretrainedModelClassifier(num_classes, pretrained=True)
+        print(f"Using Pretrained ResNet18 with {num_classes} classes")
 
     # 다중 GPU 사용을 위한 코드 추가
     if torch.cuda.device_count() > 1:
         print(f"Using {torch.cuda.device_count()} GPUs!")
         model = nn.DataParallel(model)
+
 
     # 모델을 device로 옮기기
     model.to(device)
