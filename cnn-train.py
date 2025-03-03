@@ -44,6 +44,24 @@ import shutil
 from collections import Counter
 
 
+# 클래스 균형을 맞추는 샘플러 생성 함수
+def create_balanced_sampler(labels):
+    """클래스 균형을 맞추는 샘플러 생성"""
+    labels = np.array(labels)
+    class_counts = np.bincount(labels)
+    class_weights = 1. / class_counts
+    weights = class_weights[labels]
+
+    # 가중치를 torch 텐서로 변환
+    weights = torch.from_numpy(weights).float()
+
+    # 클래스 균형을 맞추는 WeightedRandomSampler 생성
+    sampler = torch.utils.data.WeightedRandomSampler(
+        weights=weights,
+        num_samples=len(labels),
+        replacement=True
+    )
+    return sampler
 # 먼저 CSV 파일에서 filtername 추출 및 클래스 정의 함수
 def extract_filternames_from_csv(csv_path):
     """CSV 파일에서 고유한 filtername을 추출하고 클래스 매핑을 생성합니다."""
@@ -968,14 +986,25 @@ def main():
         print("Error: Empty dataset after filtering invalid images.")
         return
 
+    # 균형 있는 샘플링을 위한 sampler 생성
+    sampler = create_balanced_sampler(train_labels)
+
+    # DataLoader 생성 시 sampler 사용 (shuffle=True는 제거)
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=256,
+        sampler=sampler,  # shuffle=True 대신 sampler 사용
+        num_workers=4,
+        pin_memory=True
+    )
+
+    val_loader = DataLoader(val_dataset, batch_size=256, shuffle=False, num_workers=4, pin_memory=True)
+    test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=4, pin_memory=True)
+
     print(f"Train dataset size: {len(train_dataset)}")
     print(f"Validation dataset size: {len(val_dataset)}")
     print(f"Test dataset size: {len(test_dataset)}")
 
-    # 배치 크기 조정 (큰 이미지에 맞게 줄임)
-    train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=4, pin_memory=True)
-    val_loader = DataLoader(val_dataset, batch_size=128, shuffle=False, num_workers=4, pin_memory=True)
-    test_loader = DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=4, pin_memory=True)
 
     # Initialize the model
     num_classes = len(label_map)
