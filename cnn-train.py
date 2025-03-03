@@ -1001,9 +1001,12 @@ class SimpleAttentionFilterClassifier(nn.Module):
 class PretrainedModelClassifier(nn.Module):
     def __init__(self, num_classes, pretrained=True):
         super().__init__()
-        # 사전 학습된 ResNet18 로드
-        from torchvision.models import resnet18
-        self.resnet = resnet18(pretrained=pretrained)
+        # 최신 방식으로 ResNet18 로드
+        from torchvision.models import resnet18, ResNet18_Weights
+
+        # pretrained 대신 weights 사용
+        weights = ResNet18_Weights.IMAGENET1K_V1 if pretrained else None
+        self.resnet = resnet18(weights=weights)
 
         # 마지막 FC 레이어 교체
         in_features = self.resnet.fc.in_features
