@@ -658,7 +658,7 @@ def main():
             val_loader=val_loader,
             criterion=criterion,
             optimizer=optimizer,
-            num_epochs=50,
+            num_epochs=5000,
             patience=10,
             device=device
         )
