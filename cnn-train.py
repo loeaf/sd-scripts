@@ -958,11 +958,18 @@ def main():
     print(f"Validation dataset size: {len(val_dataset)}")
     print(f"Test dataset size: {len(test_dataset)}")
 
-
-    # Initialize the model
+    # main 함수 내에서 모델 초기화 후 적용
     num_classes = len(label_map)
-    model = AttentionFilterClassifier(num_classes)  # 기존 FilterClassifierCNN 대신 새 모델 사용
+    model = AttentionFilterClassifier(num_classes)
     print(f"Using Attention-based CNN with {num_classes} classes")
+
+    # 다중 GPU 사용을 위한 코드 추가
+    if torch.cuda.device_count() > 1:
+        print(f"Using {torch.cuda.device_count()} GPUs!")
+        model = nn.DataParallel(model)
+
+    # 모델을 device로 옮기기
+    model.to(device)
 
     # Define loss function and optimizer
     criterion = nn.CrossEntropyLoss()
