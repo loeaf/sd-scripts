@@ -395,7 +395,6 @@ def get_val_transforms():
     ])
 
 
-# On-the-fly Dataset class with Albumentations support
 class AlbumentationsDataset(Dataset):
     def __init__(self, image_paths, labels, transforms=None):
         # Filter out any paths that don't exist or are corrupted
@@ -420,23 +419,39 @@ class AlbumentationsDataset(Dataset):
     def __getitem__(self, idx):
         image_path = self.image_paths[idx]
         try:
-            # OpenCV로 이미지 읽기 (Albumentations는 OpenCV 형식 사용)
-            image = cv2.imread(image_path)
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # BGR -> RGB
+            # PIL을 사용하여 이미지를 읽고 numpy 배열로 변환
+            with Image.open(image_path) as img:
+                image = np.array(img.convert('RGB'))
+
             label = self.labels[idx]
 
             if self.transforms:
-                transformed = self.transforms(image=image)
-                image = transformed["image"]
+                try:
+                    transformed = self.transforms(image=image)
+                    image = transformed["image"]
+                except Exception as e:
+                    # 변환 오류 발생 시 기본 토치 변환 사용
+                    print(f"Transform error for {image_path}: {e}, using fallback")
+                    image = torch.from_numpy(image.transpose(2, 0, 1)).float() / 255.0
+                    image = transforms.Normalize(
+                        mean=[0.485, 0.456, 0.406],
+                        std=[0.229, 0.224, 0.225]
+                    )(image)
 
             return image, label
         except Exception as e:
             # 오류 발생 시 검은색 이미지로 대체
             print(f"Error loading image {image_path}: {e}")
-            image = np.zeros((128, 128, 3), dtype=np.uint8)
+            image = np.zeros((224, 224, 3), dtype=np.uint8)
             if self.transforms:
-                transformed = self.transforms(image=image)
-                image = transformed["image"]
+                try:
+                    transformed = self.transforms(image=image)
+                    image = transformed["image"]
+                except:
+                    # 변환 오류 발생 시 기본 토치 텐서로 변환
+                    image = torch.zeros(3, 224, 224)
+            else:
+                image = torch.zeros(3, 224, 224)
             return image, self.labels[idx]
 
 
