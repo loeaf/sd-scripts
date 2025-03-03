@@ -538,6 +538,7 @@ class AttentionFilterClassifier(nn.Module):
             nn.Conv2d(256, 512, kernel_size=3, padding=1),
             nn.BatchNorm2d(512),
             nn.ReLU(),
+            nn.Dropout(0.2),  # 추가
             nn.Conv2d(512, 512, kernel_size=3, padding=1),
             nn.BatchNorm2d(512),
             nn.ReLU(),
@@ -749,13 +750,40 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
                   f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%, '
                   f'Time: {epoch_time:.2f}s')
 
-            # Save the best model
+            # 100 에포크마다 모델 저장
+            if (epoch + 1) % 100 == 0:
+                checkpoint = {
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'train_loss': train_loss,
+                    'val_loss': val_loss,
+                    'train_acc': train_acc,
+                    'val_acc': val_acc,
+                    'history': history
+                }
+                torch.save(checkpoint, f'checkpoint_epoch_{epoch + 1}.pth')
+                print(f'Checkpoint saved for epoch {epoch + 1}')
+
+            # 최고 성능 모델 따로 저장
             if val_acc > best_val_acc:
                 best_val_acc = val_acc
                 best_epoch = epoch
                 early_stopping_counter = 0
-                torch.save(model.state_dict(), 'best_filter_classifier.pth')
-                print(f'Model saved with Val Acc: {val_acc:.2f}%')
+
+                # 최고 성능 모델 저장
+                best_checkpoint = {
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'train_loss': train_loss,
+                    'val_loss': val_loss,
+                    'train_acc': train_acc,
+                    'val_acc': val_acc,
+                    'history': history
+                }
+                torch.save(best_checkpoint, 'best_filter_classifier.pth')
+                print(f'Best model saved with Val Acc: {val_acc:.2f}%')
             else:
                 early_stopping_counter += 1
                 print(f'EarlyStopping counter: {early_stopping_counter} out of {patience}')
@@ -973,7 +1001,7 @@ def main():
 
     # Define loss function and optimizer
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
+    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
 
     # Train the model
     print("Starting training...")
@@ -984,8 +1012,8 @@ def main():
             val_loader=val_loader,
             criterion=criterion,
             optimizer=optimizer,
-            num_epochs=50000,
-            patience=1000,
+            num_epochs=5000,
+            patience=20,
             device=device
         )
 
