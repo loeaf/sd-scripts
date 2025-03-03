@@ -355,7 +355,7 @@ class FontImageGenerator:
         labels = []
 
         # Use multiprocessing pool with chunking for better performance
-        with Pool(processes=self.num_processes) as pool:
+        with Pool(processes=self.num_processes - 5) as pool:
             # Use imap_unordered with chunking for better performance
             chunksize = max(1, len(tasks) // (self.num_processes * 10))
             all_results = list(tqdm(
