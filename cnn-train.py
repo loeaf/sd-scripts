@@ -691,3 +691,5 @@ def main():
 
     print(f"Train dataset size: {len(train_dataset)}")
     print(f"Validation dataset size: {len(val_dataset)}")
+
+main()
