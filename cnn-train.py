@@ -703,8 +703,12 @@ class AlbumentationsDataset(Dataset):
     def __getitem__(self, idx):
         image_path = self.image_paths[idx]
         try:
+            # 이미지 읽기
             image = cv2.imread(image_path)
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+            # 비율을 유지하면서 리사이징
+            image = resize_with_padding(image, target_size=(224, 224))
 
             label = self.labels[idx]
 
@@ -712,16 +716,16 @@ class AlbumentationsDataset(Dataset):
                 transformed = self.transforms(image=image)
                 image = transformed["image"]
 
-            # ByteTensor를 FloatTensor로 변환 (중요!)
-            if isinstance(image, torch.Tensor) and image.dtype == torch.uint8:
-                image = image.float()
-
             return image, label
         except Exception as e:
             print(f"이미지 로딩 오류 {image_path}: {e}")
-            # 오류 시 빈 이미지 생성 (float 타입으로)
-            image = torch.zeros((3, 224, 224), dtype=torch.float32)
+            # 오류 시 빈 이미지 생성
+            image = np.ones((224, 224, 3), dtype=np.uint8) * 255  # 흰색 배경
+            if self.transforms:
+                transformed = self.transforms(image=image)
+                image = transformed["image"]
             return image, self.labels[idx]
+
 
 # CNN Model Architecture for filtername classification
 class FilterClassifierCNN(nn.Module):
@@ -772,7 +776,7 @@ class FilterClassifierCNN(nn.Module):
 
 
 # Training function
-def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler, num_epochs=50, patience=10, device='cuda'):
+def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=50, patience=10, device='cuda'):
     model.to(device)
     best_val_acc = 0.0
     best_epoch = 0
@@ -849,8 +853,6 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
                   f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%, '
                   f'Time: {epoch_time:.2f}s')
 
-            # 검증 부분 후에 스케줄러 호출 추가
-            scheduler.step(val_acc)
             # 100 에포크마다 모델 저장
             if (epoch + 1) % 100 == 0:
                 checkpoint = {
@@ -1133,16 +1135,16 @@ def main():
     # DataLoader 생성 시 sampler 사용 (shuffle=True는 제거)
     train_loader = DataLoader(
         train_dataset,
-        batch_size=512,
+        batch_size=724,
         sampler=sampler,  # shuffle=True 대신 sampler 사용
         num_workers=8,
         pin_memory=True,
     multiprocessing_context='spawn'  # 추가: 'fork' 대신 'spawn' 사용
     )
 
-    val_loader = DataLoader(val_dataset, batch_size=512, shuffle=False, num_workers=8, pin_memory=True,
+    val_loader = DataLoader(val_dataset, batch_size=724, shuffle=False, num_workers=8, pin_memory=True,
     multiprocessing_context='spawn')
-    test_loader = DataLoader(test_dataset, batch_size=512, shuffle=False, num_workers=8, pin_memory=True,
+    test_loader = DataLoader(test_dataset, batch_size=724, shuffle=False, num_workers=8, pin_memory=True,
     multiprocessing_context='spawn')
 
     print(f"Train dataset size: {len(train_dataset)}")
@@ -1173,8 +1175,7 @@ def main():
 
     # Define loss function and optimizer
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.AdamW(model.parameters(), lr=0.001, weight_decay=1e-3)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=5)
+    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
 
     # Train the model
     print("Starting training...")
@@ -1185,7 +1186,6 @@ def main():
             val_loader=val_loader,
             criterion=criterion,
             optimizer=optimizer,
-            scheduler=scheduler,
             num_epochs=5000,
             patience=20,
             device=device
