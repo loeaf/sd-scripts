@@ -7,6 +7,9 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from PIL import Image, ImageDraw, ImageFont
+import cv2
+import albumentations as al
+from albumentations.pytorch import ToTensorV2
 from dataclasses import dataclass
 from typing import Tuple, List, Dict, Optional
 import random
@@ -311,9 +314,69 @@ class FontImageGenerator:
         return image_paths, labels, filtername_to_label
 
 
-# On-the-fly Dataset class with error handling
-class FontDataset(Dataset):
-    def __init__(self, image_paths, labels, transform=None):
+# Albumentations 증강 함수
+def get_train_transforms(use_gray=False):
+    """Albumentations 라이브러리를 사용한 강력한 데이터 증강"""
+    return al.Compose([
+        al.OneOf([
+            al.Rotate(limit=(-35, 35), border_mode=cv2.BORDER_CONSTANT),
+        ], p=0.05),
+        al.ShiftScaleRotate(border_mode=cv2.BORDER_CONSTANT, rotate_limit=30, p=0.05),
+        al.OpticalDistortion(border_mode=cv2.BORDER_CONSTANT, distort_limit=5.0, shift_limit=0.1, p=0.05),
+        al.GridDistortion(border_mode=cv2.BORDER_CONSTANT, p=0.05),
+        al.ElasticTransform(border_mode=cv2.BORDER_CONSTANT, alpha_affine=15, p=0.05),
+
+        al.RandomGridShuffle(p=0.05),
+
+        al.RandomGamma(p=0.05),
+        al.HueSaturationValue(p=0.05),
+        al.RGBShift(p=0.05),
+        al.CLAHE(p=0.05),
+        al.ChannelShuffle(p=0.05),
+        al.InvertImg(p=0.05),
+
+        al.RandomSnow(p=0.05),
+        al.RandomRain(p=0.05),
+        al.RandomSunFlare(p=0.05, num_flare_circles_lower=1, num_flare_circles_upper=2, src_radius=110),
+        al.RandomShadow(p=0.05),
+        al.RandomBrightnessContrast(p=0.05),
+        al.GaussNoise(p=0.05),
+        al.ISONoise(p=0.05),
+        al.MultiplicativeNoise(p=0.05),
+        al.ToGray(p=1.0 if use_gray else 0.05),
+        al.ToSepia(p=0.05),
+        al.Solarize(p=0.05),
+        al.Equalize(p=0.05),
+        al.Posterize(p=0.05),
+        al.FancyPCA(p=0.05),
+        al.OneOf([
+            al.MotionBlur(blur_limit=3),
+            al.Blur(blur_limit=3),
+            al.MedianBlur(blur_limit=3),
+            al.GaussianBlur(blur_limit=3),
+        ], p=0.05),
+        al.CoarseDropout(p=0.05),
+        al.Cutout(p=0.05),
+        al.GridDropout(p=0.05),
+        al.ChannelDropout(p=0.05),
+        al.Downscale(p=0.1),
+        al.ImageCompression(quality_lower=60, p=0.1),
+        al.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ToTensorV2(),
+    ])
+
+
+def get_val_transforms():
+    """검증 및 테스트 데이터에 대한 기본 변환"""
+    return al.Compose([
+        al.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ToTensorV2(),
+    ])
+
+
+# On-the-fly Dataset class with Albumentations support
+class AlbumentationsDataset(Dataset):
+    def __init__(self, image_paths, labels, transforms=None):
         # Filter out any paths that don't exist or are corrupted
         valid_items = []
         for path, label in zip(image_paths, labels):
@@ -328,7 +391,7 @@ class FontDataset(Dataset):
 
         # Unpack valid items
         self.image_paths, self.labels = zip(*valid_items) if valid_items else ([], [])
-        self.transform = transform
+        self.transforms = transforms
 
     def __len__(self):
         return len(self.image_paths)
@@ -336,20 +399,23 @@ class FontDataset(Dataset):
     def __getitem__(self, idx):
         image_path = self.image_paths[idx]
         try:
-            image = Image.open(image_path).convert('RGB')
+            # OpenCV로 이미지 읽기 (Albumentations는 OpenCV 형식 사용)
+            image = cv2.imread(image_path)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # BGR -> RGB
             label = self.labels[idx]
 
-            if self.transform:
-                image = self.transform(image)
+            if self.transforms:
+                transformed = self.transforms(image=image)
+                image = transformed["image"]
 
             return image, label
         except Exception as e:
-            # If there's still an error, return a black image with the same label
-            # This is a last resort fallback
+            # 오류 발생 시 검은색 이미지로 대체
             print(f"Error loading image {image_path}: {e}")
-            image = Image.new('RGB', (128, 128), color='black')
-            if self.transform:
-                image = self.transform(image)
+            image = np.zeros((128, 128, 3), dtype=np.uint8)
+            if self.transforms:
+                transformed = self.transforms(image=image)
+                image = transformed["image"]
             return image, self.labels[idx]
 
 
@@ -609,24 +675,14 @@ def main():
         val_paths, val_labels = image_paths[train_idx:val_idx], labels[train_idx:val_idx]
         test_paths, test_labels = image_paths[val_idx:], labels[val_idx:]
 
-    # Define transformations
-    train_transform = transforms.Compose([
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomRotation(10),
-        transforms.RandomAffine(degrees=0, translate=(0.1, 0.1), scale=(0.9, 1.1)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
+    # Set up Albumentations transforms
+    train_transforms = get_train_transforms(use_gray=False)
+    val_transforms = get_val_transforms()
 
-    val_transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
-
-    # Create datasets and dataloaders
-    train_dataset = FontDataset(train_paths, train_labels, transform=train_transform)
-    val_dataset = FontDataset(val_paths, val_labels, transform=val_transform)
-    test_dataset = FontDataset(test_paths, test_labels, transform=val_transform)
+    # Create datasets and dataloaders with Albumentations
+    train_dataset = AlbumentationsDataset(train_paths, train_labels, transforms=train_transforms)
+    val_dataset = AlbumentationsDataset(val_paths, val_labels, transforms=val_transforms)
+    test_dataset = AlbumentationsDataset(test_paths, test_labels, transforms=val_transforms)
 
     # Check if datasets are valid
     if len(train_dataset) == 0 or len(val_dataset) == 0:
@@ -635,67 +691,3 @@ def main():
 
     print(f"Train dataset size: {len(train_dataset)}")
     print(f"Validation dataset size: {len(val_dataset)}")
-    print(f"Test dataset size: {len(test_dataset)}")
-
-    train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=4, pin_memory=True)
-    val_loader = DataLoader(val_dataset, batch_size=256, shuffle=False, num_workers=4, pin_memory=True)
-    test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=4, pin_memory=True)
-
-    # Initialize the model
-    num_classes = len(label_map)
-    model = FilterClassifierCNN(num_classes)
-
-    # Define loss function and optimizer
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
-
-    # Train the model
-    print("Starting training...")
-    try:
-        trained_model, history = train_model(
-            model=model,
-            train_loader=train_loader,
-            val_loader=val_loader,
-            criterion=criterion,
-            optimizer=optimizer,
-            num_epochs=50000,
-            patience=1000,
-            device=device
-        )
-
-        print("Training completed!")
-
-        # Evaluate on test set
-        print("\nEvaluating on test set...")
-        # Reverse the label map for evaluation
-        reverse_label_map = {idx: name for name, idx in label_map.items()}
-        test_acc, all_preds, all_labels = evaluate_model(
-            model=trained_model,
-            test_loader=test_loader,
-            device=device,
-            label_map=reverse_label_map
-        )
-
-        # Save the final model
-        torch.save({
-            'model_state_dict': trained_model.state_dict(),
-            'label_map': label_map,
-            'history': history,
-            'test_accuracy': test_acc
-        }, 'filter_classifier_final.pth')
-
-        print("Model saved to filter_classifier_final.pth")
-
-    except Exception as e:
-        print(f"Training failed with error: {e}")
-        # Save the model anyway in case of partial training
-        torch.save({
-            'model_state_dict': model.state_dict(),
-            'label_map': label_map,
-        }, 'filter_classifier_partial.pth')
-        print("Partial model saved to filter_classifier_partial.pth")
-
-
-if __name__ == "__main__":
-    # Required for multiprocessing on Windows
-    main()
