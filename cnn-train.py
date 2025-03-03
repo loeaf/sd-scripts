@@ -46,6 +46,152 @@ import shutil
 from collections import Counter
 
 
+class DynamicFontDataset(Dataset):
+    def __init__(self, font_data, label_map, transforms=None, target_size=(224, 224)):
+        """
+        font_data: 폰트 파일과 필터 정보를 담고 있는 리스트
+                  [(font_path, font_id, [filternames]), ...]
+        label_map: 필터네임 -> 라벨 인덱스 매핑
+        """
+        self.font_data = font_data
+        self.label_map = label_map
+        self.transforms = transforms
+        self.target_size = target_size
+        self.korean_chars = self.load_korean_chars()
+
+    def load_korean_chars(self):
+        try:
+            with open("union_korean_unicodes.json", 'r') as f:
+                korean_unicodes = json.load(f)
+            return [chr(code) for code in korean_unicodes]
+        except:
+            # 기본 한글 집합 (초성 + 중성 조합의 첫 100개)
+            return [chr(code) for code in range(44032, 44032 + 100)]
+
+    def __len__(self):
+        # 폰트 수 * 텍스트 샘플 수 * 평균 필터 수
+        return len(self.font_data) * 20  # 폰트당 20개 샘플 생성
+
+    def __getitem__(self, idx):
+        # 폰트 인덱스와 샘플 인덱스 계산
+        font_idx = idx // 20
+        sample_idx = idx % 20
+
+        font_path, font_id, filternames = self.font_data[font_idx]
+
+        # 필터네임 중 하나 랜덤 선택 (학습 시 다양성 확보)
+        filtername = random.choice(filternames)
+        label = self.label_map[filtername]
+
+        # 텍스트 길이 결정 (1~4글자)
+        text_length = (sample_idx % 4) + 1
+
+        # 랜덤 텍스트 생성
+        random.seed(font_idx * 100 + sample_idx)
+        text = ''.join(random.sample(self.korean_chars, text_length))
+
+        try:
+            # 이미지 동적 생성
+            image = self.create_text_image(text, font_path)
+
+            # 변환 적용
+            if self.transforms:
+                transformed = self.transforms(image=image)
+                image = transformed["image"]
+            else:
+                image = torch.from_numpy(image.transpose(2, 0, 1)).float() / 255.0
+
+            return image, label
+
+        except Exception as e:
+            print(f"이미지 생성 오류 (폰트: {font_id}, 텍스트: {text}): {e}")
+            # 오류 시 검은색 이미지 반환
+            image = np.zeros((3, *self.target_size), dtype=np.float32)
+            return torch.tensor(image, dtype=torch.float32), label
+
+    def create_text_image(self, text, font_path):
+        """텍스트 이미지 생성"""
+        image = np.ones((self.target_size[1], self.target_size[0], 3), dtype=np.uint8) * 255
+
+        try:
+            # PIL 이미지로 변환
+            pil_image = Image.fromarray(image)
+            draw = ImageDraw.Draw(pil_image)
+
+            # 글꼴 로드 및 크기 조정
+            font_size = int(min(self.target_size) * 0.7)
+            font = ImageFont.truetype(font_path, font_size)
+
+            # 텍스트 크기 조정
+            while True:
+                bbox = draw.textbbox((0, 0), text, font=font)
+                text_width = bbox[2] - bbox[0]
+                text_height = bbox[3] - bbox[1]
+
+                if text_width > self.target_size[0] * 0.8 or text_height > self.target_size[1] * 0.8:
+                    font_size -= 1
+                    font = ImageFont.truetype(font_path, font_size)
+                else:
+                    break
+
+                if font_size < 10:
+                    break
+
+            # 텍스트 중앙 배치
+            bbox = draw.textbbox((0, 0), text, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            position = ((self.target_size[0] - text_width) // 2 - bbox[0],
+                        (self.target_size[1] - text_height) // 2 - bbox[1])
+
+            # 텍스트 그리기
+            draw.text(position, text, font=font, fill='black')
+
+            # numpy 배열로 변환
+            return np.array(pil_image)
+
+        except Exception as e:
+            print(f"텍스트 이미지 생성 오류: {e}")
+            return image
+
+
+def prepare_dynamic_dataset(csv_path):
+    """CSV에서 폰트 데이터 로드 및 동적 데이터셋 준비"""
+    print(f"CSV 파일에서 폰트 데이터 로드 중: {csv_path}")
+
+    # CSV 파일 읽기
+    df = pd.read_csv(csv_path)
+
+    # 유효한 필터네임 추출 및 클래스 매핑 생성
+    all_filternames = []
+    for idx, row in df.iterrows():
+        if pd.isna(row['filtername']) or not isinstance(row['filtername'], str):
+            continue
+        names = [name.strip() for name in row['filtername'].split(',')]
+        all_filternames.extend(names)
+
+    unique_filternames = sorted(set(filter(None, all_filternames)))
+    filtername_to_label = {name: idx for idx, name in enumerate(unique_filternames)}
+
+    # 폰트 데이터 준비
+    font_data = []
+    for _, row in df.iterrows():
+        if not os.path.exists(row['FilePath']):
+            continue
+
+        if pd.isna(row['filtername']) or not isinstance(row['filtername'], str):
+            continue
+
+        filternames = [name.strip() for name in row['filtername'].split(',') if name.strip()]
+        if not filternames:
+            continue
+
+        font_data.append((row['FilePath'], row['font_id'], filternames))
+
+    print(f"총 {len(font_data)}개의 유효한 폰트 파일과 {len(unique_filternames)}개의 필터 클래스를 찾았습니다.")
+
+    return font_data, filtername_to_label
+
 def resize_with_padding(image, target_size=(224, 224)):
     # 원본 이미지 크기
     h, w = image.shape[:2]
@@ -1006,7 +1152,7 @@ def main():
     # Initialize the generator and create dataset with larger images
     generator = FontImageGenerator(
         korean_unicode_file="union_korean_unicodes.json",
-        num_samples_per_font=20,
+        num_samples_per_font=5000,
         num_processes=cpu_count(),
         clean_output_dir=False,  # 새 이미지 크기로 다시 생성하려면 True로 설정
         image_size=(224, 224)  # 큰 이미지 크기 지정
@@ -1061,16 +1207,16 @@ def main():
     # DataLoader 생성 시 sampler 사용 (shuffle=True는 제거)
     train_loader = DataLoader(
         train_dataset,
-        batch_size=256,
+        batch_size=352,
         sampler=sampler,  # shuffle=True 대신 sampler 사용
         num_workers=4,
         pin_memory=True,
     multiprocessing_context='spawn'  # 추가: 'fork' 대신 'spawn' 사용
     )
 
-    val_loader = DataLoader(val_dataset, batch_size=256, shuffle=False, num_workers=4, pin_memory=True,
+    val_loader = DataLoader(val_dataset, batch_size=352, shuffle=False, num_workers=4, pin_memory=True,
     multiprocessing_context='spawn')
-    test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=4, pin_memory=True,
+    test_loader = DataLoader(test_dataset, batch_size=352, shuffle=False, num_workers=4, pin_memory=True,
     multiprocessing_context='spawn')
 
     print(f"Train dataset size: {len(train_dataset)}")
