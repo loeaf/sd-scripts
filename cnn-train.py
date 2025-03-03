@@ -186,9 +186,9 @@ def create_unicode_font_image(params):
             # 텍스트 그리기
             draw.text(position, text, font=font, fill='black')
 
-            # Save the image
-            image.save(image_path)
-
+            saved_image = Image.open(image_path).convert('RGB')
+            saved_image = saved_image.resize((224, 224))
+            saved_image.save(image_path)
             # Verify the image was saved correctly
             try:
                 with Image.open(image_path) as img:
@@ -651,6 +651,8 @@ class AlbumentationsDataset(Dataset):
             image = cv2.imread(image_path)
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # BGR -> RGB
             label = self.labels[idx]
+            # 모든 이미지를 동일한 크기로 조정
+            image = cv2.resize(image, (224, 224))
 
             if self.transforms:
                 transformed = self.transforms(image=image)
