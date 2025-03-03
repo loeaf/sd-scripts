@@ -502,14 +502,14 @@ def get_train_transforms(use_gray=False):
         al.ImageCompression(quality_lower=60, p=0.1),
         al.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ToTensorV2(),
-    ], is_check_shapes=False)  # 형태 확인 비활성화
+    ])
 
 
 def get_val_transforms():
     """검증 및 테스트 데이터에 대한 기본 변환"""
     return al.Compose([
         ToTensorV2(),
-    ], is_check_shapes=False)  # 형태 확인 비활성화
+    ])
 
 
 # Self-Attention Module
