@@ -44,6 +44,34 @@ import shutil
 from collections import Counter
 
 
+def resize_with_padding(image, target_size=(224, 224)):
+    # 원본 이미지 크기
+    h, w = image.shape[:2]
+
+    # 대상 크기
+    target_h, target_w = target_size
+
+    # 비율 계산 (가로, 세로 중 작은 비율 선택)
+    ratio = min(target_w / w, target_h / h)
+
+    # 새 크기 계산
+    new_w = int(w * ratio)
+    new_h = int(h * ratio)
+
+    # 이미지 리사이징
+    resized = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
+    # 새 캔버스 생성 (흰색 배경)
+    canvas = np.ones((target_h, target_w, 3), dtype=np.uint8) * 255
+
+    # 이미지를 캔버스 중앙에 배치
+    x_offset = (target_w - new_w) // 2
+    y_offset = (target_h - new_h) // 2
+
+    # 리사이징된 이미지를 캔버스에 복사
+    canvas[y_offset:y_offset + new_h, x_offset:x_offset + new_w] = resized
+
+    return canvas
 # 클래스 균형을 맞추는 샘플러 생성 함수
 def create_balanced_sampler(labels):
     """클래스 균형을 맞추는 샘플러 생성"""
@@ -186,26 +214,53 @@ def create_unicode_font_image(params):
             # 텍스트 그리기
             draw.text(position, text, font=font, fill='black')
 
-            saved_image = Image.open(image_path).convert('RGB')
-            saved_image = saved_image.resize((224, 224))
-            saved_image.save(image_path)
+            # 이미지 저장
+            image.save(image_path)
+
+            # 비율을 유지하면서 리사이징
+            with Image.open(image_path) as img:
+                # 원본 이미지의 크기
+                width, height = img.size
+
+                # 비율 계산 (가로, 세로 중 작은 비율 선택)
+                ratio = min(224 / width, 224 / height)
+
+                # 새 크기 계산
+                new_width = int(width * ratio)
+                new_height = int(height * ratio)
+
+                # 비율을 유지하면서 리사이징
+                resized_img = img.resize((new_width, new_height), Image.LANCZOS)
+
+                # 새 캔버스 생성 (흰색 배경)
+                new_img = Image.new('RGB', (224, 224), color='white')
+
+                # 이미지를 캔버스 중앙에 배치
+                paste_x = (224 - new_width) // 2
+                paste_y = (224 - new_height) // 2
+                new_img.paste(resized_img, (paste_x, paste_y))
+
+                # 리사이징된 이미지 저장
+                new_img.save(image_path)
+
             # Verify the image was saved correctly
             try:
                 with Image.open(image_path) as img:
                     img_format = img.format
                 results.append((image_path, filtername))
-            except Exception:
-                # Remove corrupted file
+            except Exception as e:
+                # Remove corrupted file and print error
+                print(f"이미지 검증 오류: {e}")
                 try:
                     os.remove(image_path)
                 except:
                     pass
 
         except Exception as e:
+            print(f"이미지 생성 오류: {e}")
             pass
 
     return results
-
 
 # Font Image Generator
 @dataclass
@@ -647,12 +702,14 @@ class AlbumentationsDataset(Dataset):
     def __getitem__(self, idx):
         image_path = self.image_paths[idx]
         try:
-            # OpenCV로 이미지 읽기 (Albumentations는 OpenCV 형식 사용)
+            # 이미지 읽기
             image = cv2.imread(image_path)
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # BGR -> RGB
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+            # 비율을 유지하면서 리사이징
+            image = resize_with_padding(image, target_size=(224, 224))
+
             label = self.labels[idx]
-            # 모든 이미지를 동일한 크기로 조정
-            image = cv2.resize(image, (224, 224))
 
             if self.transforms:
                 transformed = self.transforms(image=image)
@@ -660,9 +717,9 @@ class AlbumentationsDataset(Dataset):
 
             return image, label
         except Exception as e:
-            # 오류 발생 시 검은색 이미지로 대체 (크기 224x224로 수정)
-            print(f"Error loading image {image_path}: {e}")
-            image = np.zeros((224, 224, 3), dtype=np.uint8)
+            print(f"이미지 로딩 오류 {image_path}: {e}")
+            # 오류 시 빈 이미지 생성
+            image = np.ones((224, 224, 3), dtype=np.uint8) * 255  # 흰색 배경
             if self.transforms:
                 transformed = self.transforms(image=image)
                 image = transformed["image"]
