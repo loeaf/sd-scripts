@@ -500,15 +500,14 @@ def get_train_transforms(use_gray=False):
         al.ChannelDropout(p=0.05),
         al.Downscale(p=0.1),
         al.ImageCompression(quality_lower=60, p=0.1),
-        al.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ToTensorV2(),
+        ToTensorV2(transpose_mask=True),  # 이미지를 tensor로 변환하고 float32로 변환
     ])
 
 
 def get_val_transforms():
     """검증 및 테스트 데이터에 대한 기본 변환"""
     return al.Compose([
-        ToTensorV2(),
+        ToTensorV2(transpose_mask=True),  # 이미지를 tensor로 변환하고 float32로 변환
     ])
 
 
@@ -703,12 +702,8 @@ class AlbumentationsDataset(Dataset):
     def __getitem__(self, idx):
         image_path = self.image_paths[idx]
         try:
-            # 이미지 읽기
             image = cv2.imread(image_path)
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
-            # 비율을 유지하면서 리사이징
-            image = resize_with_padding(image, target_size=(224, 224))
 
             label = self.labels[idx]
 
@@ -716,16 +711,16 @@ class AlbumentationsDataset(Dataset):
                 transformed = self.transforms(image=image)
                 image = transformed["image"]
 
+            # ByteTensor를 FloatTensor로 변환 (중요!)
+            if isinstance(image, torch.Tensor) and image.dtype == torch.uint8:
+                image = image.float()
+
             return image, label
         except Exception as e:
             print(f"이미지 로딩 오류 {image_path}: {e}")
-            # 오류 시 빈 이미지 생성
-            image = np.ones((224, 224, 3), dtype=np.uint8) * 255  # 흰색 배경
-            if self.transforms:
-                transformed = self.transforms(image=image)
-                image = transformed["image"]
+            # 오류 시 빈 이미지 생성 (float 타입으로)
+            image = torch.zeros((3, 224, 224), dtype=torch.float32)
             return image, self.labels[idx]
-
 
 # CNN Model Architecture for filtername classification
 class FilterClassifierCNN(nn.Module):
