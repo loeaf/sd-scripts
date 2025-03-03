@@ -18,6 +18,8 @@ from multiprocessing import Pool, cpu_count
 import glob
 import shutil
 from collections import Counter
+# 1. 더 강력한 정규화와 함께 더 깊은 모델 사용
+from torchvision.models import resnet50, ResNet50_Weights
 
 import os
 import pandas as pd
@@ -506,7 +508,6 @@ def get_train_transforms(use_gray=False):
 def get_val_transforms():
     """검증 및 테스트 데이터에 대한 기본 변환"""
     return al.Compose([
-        al.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ToTensorV2(),
     ])
 
@@ -775,7 +776,7 @@ class FilterClassifierCNN(nn.Module):
 
 
 # Training function
-def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=50, patience=10, device='cuda'):
+def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler, num_epochs=50, patience=10, device='cuda'):
     model.to(device)
     best_val_acc = 0.0
     best_epoch = 0
@@ -852,6 +853,8 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
                   f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%, '
                   f'Time: {epoch_time:.2f}s')
 
+            # 검증 부분 후에 스케줄러 호출 추가
+            scheduler.step(val_acc)
             # 100 에포크마다 모델 저장
             if (epoch + 1) % 100 == 0:
                 checkpoint = {
@@ -999,25 +1002,28 @@ class SimpleAttentionFilterClassifier(nn.Module):
 
 # 사전 학습된 ResNet 기반 모델
 class PretrainedModelClassifier(nn.Module):
-    def __init__(self, num_classes, pretrained=True):
+    def __init__(self, num_classes):
         super().__init__()
-        # 최신 방식으로 ResNet18 로드
-        from torchvision.models import resnet18, ResNet18_Weights
+        # 더 깊은 ResNet 사용
+        weights = ResNet50_Weights.IMAGENET1K_V1
+        self.resnet = resnet50(weights=weights)
 
-        # pretrained 대신 weights 사용
-        weights = ResNet18_Weights.IMAGENET1K_V1 if pretrained else None
-        self.resnet = resnet18(weights=weights)
+        # 특성 추출기 부분 고정 (선택 사항)
+        # for param in list(self.resnet.parameters())[:-30]:
+        #     param.requires_grad = False
 
-        # 마지막 FC 레이어 교체
         in_features = self.resnet.fc.in_features
         self.resnet.fc = nn.Sequential(
+            nn.Dropout(0.7),  # 더 강력한 드롭아웃
+            nn.Linear(in_features, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
             nn.Dropout(0.5),
-            nn.Linear(in_features, num_classes)
+            nn.Linear(512, num_classes)
         )
 
     def forward(self, x):
         return self.resnet(x)
-
 # On-the-fly Dataset class with error handling
 class FontDataset(Dataset):
     def __init__(self, image_paths, labels, transform=None):
@@ -1171,7 +1177,8 @@ def main():
 
     # Define loss function and optimizer
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
+    optimizer = optim.AdamW(model.parameters(), lr=0.001, weight_decay=1e-3)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=5)
 
     # Train the model
     print("Starting training...")
@@ -1182,6 +1189,7 @@ def main():
             val_loader=val_loader,
             criterion=criterion,
             optimizer=optimizer,
+            scheduler=scheduler,
             num_epochs=5000,
             patience=20,
             device=device
