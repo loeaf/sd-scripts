@@ -1156,14 +1156,14 @@ def main():
         train_dataset,
         batch_size=324,  # 더 작은 배치 사이즈 사용 (이미지 생성 시간 고려)
         shuffle=True,
-        num_workers=8,
+        num_workers=25,
         pin_memory=True,
         multiprocessing_context='spawn'
     )
 
-    val_loader = DataLoader(val_dataset, batch_size=324, shuffle=False, num_workers=8, pin_memory=True,
+    val_loader = DataLoader(val_dataset, batch_size=324, shuffle=False, num_workers=25, pin_memory=True,
                             multiprocessing_context='spawn')
-    test_loader = DataLoader(test_dataset, batch_size=324, shuffle=False, num_workers=8, pin_memory=True,
+    test_loader = DataLoader(test_dataset, batch_size=324, shuffle=False, num_workers=25, pin_memory=True,
                              multiprocessing_context='spawn')
 
     print(f"Train dataset size (fonts): {len(train_font_data)} fonts x 20 samples = {len(train_dataset)} images")
