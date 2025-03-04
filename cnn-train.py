@@ -1152,76 +1152,55 @@ def main():
     # Initialize the generator and create dataset with larger images
     generator = FontImageGenerator(
         korean_unicode_file="union_korean_unicodes.json",
-        num_samples_per_font=5000,
+        num_samples_per_font=1000,
         num_processes=cpu_count(),
         clean_output_dir=False,  # 새 이미지 크기로 다시 생성하려면 True로 설정
         image_size=(224, 224)  # 큰 이미지 크기 지정
     )
 
     csv_path = 'cnn-cate_filter_merged.csv'
+    print(f"CSV 파일에서 폰트 데이터 로드 중: {csv_path}")
 
-    print(f"Generating dataset from fonts using {generator.num_processes} processes...")
-    image_paths, labels, label_map = generator.generate_dataset_from_csv(csv_path)
+    # 폰트 데이터와 라벨 매핑 로드
+    font_data, label_map = prepare_dynamic_dataset(csv_path)
 
-    if not image_paths:
-        print("Error: No valid images were generated. Please check font paths and permissions.")
-        return
+    # 데이터셋 분할 - 폰트 데이터를 분할
+    font_ids = list(range(len(font_data)))
+    train_ids, temp_ids = train_test_split(font_ids, test_size=0.3, random_state=42)
+    val_ids, test_ids = train_test_split(temp_ids, test_size=0.5, random_state=42)
 
-    # Split the dataset
-    try:
-        train_paths, temp_paths, train_labels, temp_labels = train_test_split(
-            image_paths, labels, test_size=0.3, random_state=42, stratify=labels
-        )
+    # 분할된 폰트 데이터 생성
+    train_font_data = [font_data[i] for i in train_ids]
+    val_font_data = [font_data[i] for i in val_ids]
+    test_font_data = [font_data[i] for i in test_ids]
 
-        val_paths, test_paths, val_labels, test_labels = train_test_split(
-            temp_paths, temp_labels, test_size=0.5, random_state=42, stratify=temp_labels
-        )
-    except ValueError as e:
-        print(f"Error in train/test split: {e}")
-        print("Using simple split without stratification")
-        total = len(image_paths)
-        train_idx = int(0.7 * total)
-        val_idx = int(0.85 * total)
-
-        train_paths, train_labels = image_paths[:train_idx], labels[:train_idx]
-        val_paths, val_labels = image_paths[train_idx:val_idx], labels[train_idx:val_idx]
-        test_paths, test_labels = image_paths[val_idx:], labels[val_idx:]
-
-    # Set up Albumentations transforms
+    # 동적 데이터셋 생성
     train_transforms = get_train_transforms(use_gray=False)
     val_transforms = get_val_transforms()
 
-    # Create datasets and dataloaders with Albumentations
-    train_dataset = AlbumentationsDataset(train_paths, train_labels, transforms=train_transforms)
-    val_dataset = AlbumentationsDataset(val_paths, val_labels, transforms=val_transforms)
-    test_dataset = AlbumentationsDataset(test_paths, test_labels, transforms=val_transforms)
+    train_dataset = DynamicFontDataset(train_font_data, label_map, transforms=train_transforms)
+    val_dataset = DynamicFontDataset(val_font_data, label_map, transforms=val_transforms)
+    test_dataset = DynamicFontDataset(test_font_data, label_map, transforms=val_transforms)
 
-    # Check if datasets are valid
-    if len(train_dataset) == 0 or len(val_dataset) == 0:
-        print("Error: Empty dataset after filtering invalid images.")
-        return
-
-    # 균형 있는 샘플링을 위한 sampler 생성
-    sampler = create_balanced_sampler(train_labels)
-
-    # DataLoader 생성 시 sampler 사용 (shuffle=True는 제거)
+    # DataLoader 생성
+    # 클래스 균형 맞추기는 여기서는 적용하지 않음 (동적 생성이기 때문에 복잡해짐)
     train_loader = DataLoader(
         train_dataset,
-        batch_size=352,
-        sampler=sampler,  # shuffle=True 대신 sampler 사용
+        batch_size=128,  # 더 작은 배치 사이즈 사용 (이미지 생성 시간 고려)
+        shuffle=True,
         num_workers=4,
         pin_memory=True,
-    multiprocessing_context='spawn'  # 추가: 'fork' 대신 'spawn' 사용
+        multiprocessing_context='spawn'
     )
 
-    val_loader = DataLoader(val_dataset, batch_size=352, shuffle=False, num_workers=4, pin_memory=True,
-    multiprocessing_context='spawn')
-    test_loader = DataLoader(test_dataset, batch_size=352, shuffle=False, num_workers=4, pin_memory=True,
-    multiprocessing_context='spawn')
+    val_loader = DataLoader(val_dataset, batch_size=128, shuffle=False, num_workers=4, pin_memory=True,
+                            multiprocessing_context='spawn')
+    test_loader = DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=4, pin_memory=True,
+                             multiprocessing_context='spawn')
 
-    print(f"Train dataset size: {len(train_dataset)}")
-    print(f"Validation dataset size: {len(val_dataset)}")
-    print(f"Test dataset size: {len(test_dataset)}")
+    print(f"Train dataset size (fonts): {len(train_font_data)} fonts x 20 samples = {len(train_dataset)} images")
+    print(f"Validation dataset size: {len(val_dataset)} images")
+    print(f"Test dataset size: {len(test_dataset)} images")
 
     # main 함수 내에서 모델 초기화 부분 수정
     num_classes = len(label_map)
