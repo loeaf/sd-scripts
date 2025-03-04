@@ -56,8 +56,8 @@ class DynamicFontDataset(Dataset):
         self.korean_chars = self.load_korean_chars()
 
     def __getitem__(self, idx):
-        font_idx = idx // 50
-        sample_idx = idx % 50
+        font_idx = idx // 20
+        sample_idx = idx % 20
         font_path, font_id, filternames = self.font_data[font_idx]
 
         # 다중 레이블 벡터 생성
@@ -94,7 +94,7 @@ class DynamicFontDataset(Dataset):
 
     def __len__(self):
         # 폰트 수 * 텍스트 샘플 수 * 평균 필터 수
-        return len(self.font_data) * 50  # 폰트당 20개 샘플 생성
+        return len(self.font_data) * 20  # 폰트당 20개 샘플 생성
 
     def create_text_image(self, text, font_path):
         """텍스트 이미지 생성"""
@@ -860,31 +860,31 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
 
         # Wrap with try-except to handle any unexpected errors during training
         try:
-            for images, labels in train_loader:
-                images, labels = images.to(device), labels.to(device)
-                optimizer.zero_grad()
-                outputs = model(images)  # 로짓
-                loss = criterion(outputs, labels)
-                loss.backward()
-                optimizer.step()
-
-                # 로짓을 확률로 변환
-                preds = torch.sigmoid(outputs) > 0.5
-                total += labels.size(0) * labels.size(1)
-                correct += (preds == labels).sum().item()
-
-            train_loss = running_loss / len(train_loader)
-            train_acc = 100 * correct / total
-            history['train_loss'].append(train_loss)
-            history['train_acc'].append(train_acc)
-
-            # Validation phase
-            model.eval()
-            val_loss = 0.0
-            val_correct = 0
-            val_total = 0
-
             with torch.no_grad():
+                for images, labels in train_loader:
+                    images, labels = images.to(device), labels.to(device)
+                    optimizer.zero_grad()
+                    outputs = model(images)  # 로짓
+                    loss = criterion(outputs, labels)
+                    loss.backward()
+                    optimizer.step()
+
+                    # 로짓을 확률로 변환
+                    preds = torch.sigmoid(outputs) > 0.5
+                    total += labels.size(0) * labels.size(1)
+                    correct += (preds == labels).sum().item()
+
+                train_loss = running_loss / len(train_loader)
+                train_acc = 100 * correct / total
+                history['train_loss'].append(train_loss)
+                history['train_acc'].append(train_acc)
+
+                # Validation phase
+                model.eval()
+                val_loss = 0.0
+                val_correct = 0
+                val_total = 0
+
                 for images, labels in val_loader:
                     images, labels = images.to(device), labels.to(device)
                     outputs = model(images)
