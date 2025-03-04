@@ -48,16 +48,40 @@ from collections import Counter
 
 class DynamicFontDataset(Dataset):
     def __init__(self, font_data, label_map, transforms=None, target_size=(224, 224)):
-        """
-        font_data: 폰트 파일과 필터 정보를 담고 있는 리스트
-                  [(font_path, font_id, [filternames]), ...]
-        label_map: 필터네임 -> 라벨 인덱스 매핑
-        """
         self.font_data = font_data
         self.label_map = label_map
+        self.num_classes = len(label_map)
         self.transforms = transforms
         self.target_size = target_size
         self.korean_chars = self.load_korean_chars()
+
+    def __getitem__(self, idx):
+        font_idx = idx // 50
+        sample_idx = idx % 50
+        font_path, font_id, filternames = self.font_data[font_idx]
+
+        # 다중 레이블 벡터 생성
+        label_vector = torch.zeros(self.num_classes, dtype=torch.float32)
+        for filtername in filternames:
+            if filtername in self.label_map:
+                label_vector[self.label_map[filtername]] = 1.0
+
+        text_length = (sample_idx % 4) + 1
+        random.seed(font_idx * 100 + sample_idx)
+        text = ''.join(random.sample(self.korean_chars, text_length))
+
+        try:
+            image = self.create_text_image(text, font_path)
+            if self.transforms:
+                transformed = self.transforms(image=image)
+                image = transformed["image"]
+            else:
+                image = torch.from_numpy(image.transpose(2, 0, 1)).float() / 255.0
+            return image, label_vector
+        except Exception as e:
+            print(f"이미지 생성 오류 (폰트: {font_id}, 텍스트: {text}): {e}")
+            image = torch.zeros((3, *self.target_size), dtype=torch.float32)
+            return image, label_vector
 
     def load_korean_chars(self):
         try:
@@ -70,44 +94,7 @@ class DynamicFontDataset(Dataset):
 
     def __len__(self):
         # 폰트 수 * 텍스트 샘플 수 * 평균 필터 수
-        return len(self.font_data) * 2000  # 폰트당 20개 샘플 생성
-
-    def __getitem__(self, idx):
-        # 폰트 인덱스와 샘플 인덱스 계산
-        font_idx = idx // 2000
-        sample_idx = idx % 2000
-
-        font_path, font_id, filternames = self.font_data[font_idx]
-
-        # 필터네임 중 하나 랜덤 선택 (학습 시 다양성 확보)
-        filtername = random.choice(filternames)
-        label = self.label_map[filtername]
-
-        # 텍스트 길이 결정 (1~4글자)
-        text_length = (sample_idx % 4) + 1
-
-        # 랜덤 텍스트 생성
-        random.seed(font_idx * 100 + sample_idx)
-        text = ''.join(random.sample(self.korean_chars, text_length))
-
-        try:
-            # 이미지 동적 생성
-            image = self.create_text_image(text, font_path)
-
-            # 변환 적용
-            if self.transforms:
-                transformed = self.transforms(image=image)
-                image = transformed["image"]
-            else:
-                image = torch.from_numpy(image.transpose(2, 0, 1)).float() / 255.0
-
-            return image, label
-
-        except Exception as e:
-            print(f"이미지 생성 오류 (폰트: {font_id}, 텍스트: {text}): {e}")
-            # 오류 시 검은색 이미지 반환
-            image = np.zeros((3, *self.target_size), dtype=np.float32)
-            return torch.tensor(image, dtype=torch.float32), label
+        return len(self.font_data) * 50  # 폰트당 20개 샘플 생성
 
     def create_text_image(self, text, font_path):
         """텍스트 이미지 생성"""
@@ -875,21 +862,16 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         try:
             for images, labels in train_loader:
                 images, labels = images.to(device), labels.to(device)
-
-                # Zero the parameter gradients
                 optimizer.zero_grad()
-
-                # Forward + backward + optimize
-                outputs = model(images)
+                outputs = model(images)  # 로짓
                 loss = criterion(outputs, labels)
                 loss.backward()
                 optimizer.step()
 
-                # Statistics
-                running_loss += loss.item()
-                _, predicted = torch.max(outputs.data, 1)
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
+                # 로짓을 확률로 변환
+                preds = torch.sigmoid(outputs) > 0.5
+                total += labels.size(0) * labels.size(1)
+                correct += (preds == labels).sum().item()
 
             train_loss = running_loss / len(train_loader)
             train_acc = 100 * correct / total
@@ -1074,26 +1056,21 @@ class SimpleAttentionFilterClassifier(nn.Module):
 class PretrainedModelClassifier(nn.Module):
     def __init__(self, num_classes):
         super().__init__()
-        # 더 깊은 ResNet 사용
         weights = ResNet50_Weights.IMAGENET1K_V1
         self.resnet = resnet50(weights=weights)
-
-        # 특성 추출기 부분 고정 (선택 사항)
-        # for param in list(self.resnet.parameters())[:-30]:
-        #     param.requires_grad = False
-
         in_features = self.resnet.fc.in_features
         self.resnet.fc = nn.Sequential(
-            nn.Dropout(0.7),  # 더 강력한 드롭아웃
+            nn.Dropout(0.7),
             nn.Linear(in_features, 512),
             nn.BatchNorm1d(512),
             nn.ReLU(),
             nn.Dropout(0.5),
-            nn.Linear(512, num_classes)
+            nn.Linear(512, num_classes)  # 다중 레이블 출력
         )
 
     def forward(self, x):
-        return self.resnet(x)
+        return self.resnet(x)  # 로짓 반환 (시그모이드 이전)
+
 # On-the-fly Dataset class with error handling
 class FontDataset(Dataset):
     def __init__(self, image_paths, labels, transform=None):
@@ -1216,7 +1193,7 @@ def main():
     model.to(device)
 
     # Define loss function and optimizer
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.BCEWithLogitsLoss()  # 다중 레이블 손실 함수
     optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
 
     # Train the model
