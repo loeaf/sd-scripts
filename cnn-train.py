@@ -70,12 +70,12 @@ class DynamicFontDataset(Dataset):
 
     def __len__(self):
         # 폰트 수 * 텍스트 샘플 수 * 평균 필터 수
-        return len(self.font_data) * 20  # 폰트당 20개 샘플 생성
+        return len(self.font_data) * 2000  # 폰트당 20개 샘플 생성
 
     def __getitem__(self, idx):
         # 폰트 인덱스와 샘플 인덱스 계산
-        font_idx = idx // 20
-        sample_idx = idx % 20
+        font_idx = idx // 2000
+        sample_idx = idx % 2000
 
         font_path, font_id, filternames = self.font_data[font_idx]
 
@@ -1149,15 +1149,6 @@ def main():
     print(f"Using device: {device}")
 
 
-    # Initialize the generator and create dataset with larger images
-    generator = FontImageGenerator(
-        korean_unicode_file="union_korean_unicodes.json",
-        num_samples_per_font=1000,
-        num_processes=cpu_count(),
-        clean_output_dir=False,  # 새 이미지 크기로 다시 생성하려면 True로 설정
-        image_size=(224, 224)  # 큰 이미지 크기 지정
-    )
-
     csv_path = 'cnn-cate_filter_merged.csv'
     print(f"CSV 파일에서 폰트 데이터 로드 중: {csv_path}")
 
@@ -1186,16 +1177,16 @@ def main():
     # 클래스 균형 맞추기는 여기서는 적용하지 않음 (동적 생성이기 때문에 복잡해짐)
     train_loader = DataLoader(
         train_dataset,
-        batch_size=128,  # 더 작은 배치 사이즈 사용 (이미지 생성 시간 고려)
+        batch_size=324,  # 더 작은 배치 사이즈 사용 (이미지 생성 시간 고려)
         shuffle=True,
-        num_workers=4,
+        num_workers=8,
         pin_memory=True,
         multiprocessing_context='spawn'
     )
 
-    val_loader = DataLoader(val_dataset, batch_size=128, shuffle=False, num_workers=4, pin_memory=True,
+    val_loader = DataLoader(val_dataset, batch_size=324, shuffle=False, num_workers=8, pin_memory=True,
                             multiprocessing_context='spawn')
-    test_loader = DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=4, pin_memory=True,
+    test_loader = DataLoader(test_dataset, batch_size=324, shuffle=False, num_workers=8, pin_memory=True,
                              multiprocessing_context='spawn')
 
     print(f"Train dataset size (fonts): {len(train_font_data)} fonts x 20 samples = {len(train_dataset)} images")
