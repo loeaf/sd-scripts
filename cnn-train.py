@@ -46,6 +46,65 @@ import shutil
 from collections import Counter
 
 
+# 라벨 값 저장 함수
+def save_label_map(label_map, output_dir="label_maps"):
+    """라벨 맵을 여러 형식으로 저장합니다."""
+    os.makedirs(output_dir, exist_ok=True)
+
+    # 역방향 라벨 맵 생성 (인덱스 -> 필터네임)
+    reverse_label_map = {idx: name for name, idx in label_map.items()}
+
+    # 1. JSON 형식으로 저장
+    label_data = {
+        "filtername_to_label": label_map,
+        "label_to_filtername": reverse_label_map
+    }
+
+    json_path = os.path.join(output_dir, "label_map.json")
+    with open(json_path, 'w', encoding='utf-8') as f:
+        json.dump(label_data, f, ensure_ascii=False, indent=2)
+
+    # 2. CSV 형식으로 저장
+    csv_data = []
+    for name, idx in sorted(label_map.items(), key=lambda x: x[1]):
+        csv_data.append([idx, name])
+
+    csv_path = os.path.join(output_dir, "label_map.csv")
+    pd.DataFrame(csv_data, columns=['label_id', 'filter_name']).to_csv(
+        csv_path, index=False, encoding='utf-8'
+    )
+
+    # 3. Python 모듈로 저장
+    py_path = os.path.join(output_dir, "label_map.py")
+    with open(py_path, 'w', encoding='utf-8') as f:
+        f.write("# 필터네임 -> 인덱스 매핑\n")
+        f.write("FILTER_TO_INDEX = {\n")
+        for name, idx in sorted(label_map.items()):
+            f.write(f"    '{name}': {idx},\n")
+        f.write("}\n\n")
+
+        f.write("# 인덱스 -> 필터네임 매핑\n")
+        f.write("INDEX_TO_FILTER = {\n")
+        for idx, name in sorted(reverse_label_map.items()):
+            f.write(f"    {idx}: '{name}',\n")
+        f.write("}\n")
+
+    # 4. 텍스트 파일로 저장 (읽기 쉬운 형식)
+    txt_path = os.path.join(output_dir, "label_map.txt")
+    with open(txt_path, 'w', encoding='utf-8') as f:
+        f.write(f"총 클래스 수: {len(label_map)}\n\n")
+        f.write("ID | 필터 이름\n")
+        f.write("-" * 40 + "\n")
+        for idx, name in sorted(reverse_label_map.items()):
+            f.write(f"{idx:2d} | {name}\n")
+
+    print(f"라벨 맵이 다음 파일로 저장되었습니다:")
+    print(f"  - JSON: {json_path}")
+    print(f"  - CSV: {csv_path}")
+    print(f"  - Python: {py_path}")
+    print(f"  - Text: {txt_path}")
+
+
 class DynamicFontDataset(Dataset):
     def __init__(self, font_data, label_map, transforms=None, target_size=(224, 224), samples_per_font=200):
         self.font_data = font_data
@@ -1152,6 +1211,9 @@ def main():
     # 폰트 데이터와 라벨 매핑 로드
     font_data, label_map = prepare_dynamic_dataset(csv_path)
 
+    # 폰트 데이터와 라벨 매핑 로드
+    # 라벨 맵 저장
+    save_label_map(label_map)
     # 데이터셋 분할 - 폰트 데이터를 분할
     font_ids = list(range(len(font_data)))
     train_ids, temp_ids = train_test_split(font_ids, test_size=0.3, random_state=42)
