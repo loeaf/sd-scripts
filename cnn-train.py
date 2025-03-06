@@ -1281,7 +1281,19 @@ def main():
     model.to(device)
 
     # Define loss function and optimizer
-    criterion = nn.BCEWithLogitsLoss()  # 다중 레이블 손실 함수
+    # 클래스별 샘플 수에 기반한 가중치 계산
+    class_counts = [61, 273, 806, 264, 191, 2498, 249, 1009, 76, 361, 41, 356, 66, 2029, 59, 77, 68, 10, 36, 125, 159,
+                    1382, 429, 299, 265, 249, 356]
+    class_weights = 1.0 / torch.tensor(class_counts, dtype=torch.float)
+
+    # 가중치 정규화 (모든 가중치의 평균이 1이 되도록)
+    class_weights = class_weights / class_weights.sum() * len(class_weights)
+
+    # GPU에 가중치 텐서 이동
+    class_weights = class_weights.to(device)
+
+    # 가중치를 적용한 BCE 손실 함수 사용
+    criterion = nn.BCEWithLogitsLoss(pos_weight=class_weights)
     optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
 
     # Train the model
