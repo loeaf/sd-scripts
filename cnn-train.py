@@ -57,8 +57,8 @@ class DynamicFontDataset(Dataset):
         self.korean_chars = self.load_korean_chars()
     # 폰트개수
     def __getitem__(self, idx):
-        font_idx = idx // 200
-        sample_idx = idx % 200
+        font_idx = idx // self.samples_per_font
+        sample_idx = idx % self.samples_per_font
         font_path, font_id, filternames = self.font_data[font_idx]
 
         # 다중 레이블 벡터 생성
@@ -1147,9 +1147,10 @@ def main():
     val_font_data = [font_data[i] for i in val_ids]
     test_font_data = [font_data[i] for i in test_ids]
     # For testing purposes, use a much smaller dataset
-    train_font_data = train_font_data[:100]  # Just use 100 fonts for testing
-    val_font_data = val_font_data[:20]
-    test_font_data = test_font_data[:20]
+    train_font_data = train_font_data
+    val_font_data = val_font_data
+    test_font_data = test_font_data
+
 
     # 동적 데이터셋 생성
     train_transforms = get_train_transforms(use_gray=False)
@@ -1168,16 +1169,16 @@ def main():
     # 클래스 균형 맞추기는 여기서는 적용하지 않음 (동적 생성이기 때문에 복잡해짐)
     train_loader = DataLoader(
         train_dataset,
-        batch_size=20,  # 더 작은 배치 사이즈 사용 (이미지 생성 시간 고려)
+        batch_size=334,  # 더 작은 배치 사이즈 사용 (이미지 생성 시간 고려)
         shuffle=True,
-        num_workers=4,
+        num_workers=16,
         pin_memory=True,
         multiprocessing_context='spawn'
     )
 
-    val_loader = DataLoader(val_dataset, batch_size=20, shuffle=False, num_workers=25, pin_memory=True,
+    val_loader = DataLoader(val_dataset, batch_size=334, shuffle=False, num_workers=16, pin_memory=True,
                             multiprocessing_context='spawn')
-    test_loader = DataLoader(test_dataset, batch_size=20, shuffle=False, num_workers=25, pin_memory=True,
+    test_loader = DataLoader(test_dataset, batch_size=334, shuffle=False, num_workers=16, pin_memory=True,
                              multiprocessing_context='spawn')
 
     # main 함수 내에서 모델 초기화 부분 수정
