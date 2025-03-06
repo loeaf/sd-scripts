@@ -207,6 +207,7 @@ def resize_with_padding(image, target_size=(224, 224)):
     canvas[y_offset:y_offset + new_h, x_offset:x_offset + new_w] = resized
 
     return canvas
+
 # 클래스 균형을 맞추는 샘플러 생성 함수
 def create_balanced_sampler(labels):
     """클래스 균형을 맞추는 샘플러 생성"""
@@ -225,6 +226,7 @@ def create_balanced_sampler(labels):
         replacement=True
     )
     return sampler
+
 # 먼저 CSV 파일에서 filtername 추출 및 클래스 정의 함수
 def extract_filternames_from_csv(csv_path):
     """CSV 파일에서 고유한 filtername을 추출하고 클래스 매핑을 생성합니다."""
@@ -269,7 +271,6 @@ def extract_filternames_from_csv(csv_path):
     print(f"클래스 정보가 'filter_classes.txt'에 저장되었습니다.")
 
     return unique_filternames, filtername_to_label, class_counts
-
 
 def create_unicode_font_image(params):
     chars, font_path, font_id, filternames, char_index, image_size, output_dir = params
@@ -1154,16 +1155,16 @@ def main():
     # 클래스 균형 맞추기는 여기서는 적용하지 않음 (동적 생성이기 때문에 복잡해짐)
     train_loader = DataLoader(
         train_dataset,
-        batch_size=324,  # 더 작은 배치 사이즈 사용 (이미지 생성 시간 고려)
+        batch_size=20,  # 더 작은 배치 사이즈 사용 (이미지 생성 시간 고려)
         shuffle=True,
-        num_workers=25,
+        num_workers=4,
         pin_memory=True,
         multiprocessing_context='spawn'
     )
 
-    val_loader = DataLoader(val_dataset, batch_size=324, shuffle=False, num_workers=25, pin_memory=True,
+    val_loader = DataLoader(val_dataset, batch_size=20, shuffle=False, num_workers=25, pin_memory=True,
                             multiprocessing_context='spawn')
-    test_loader = DataLoader(test_dataset, batch_size=324, shuffle=False, num_workers=25, pin_memory=True,
+    test_loader = DataLoader(test_dataset, batch_size=20, shuffle=False, num_workers=25, pin_memory=True,
                              multiprocessing_context='spawn')
 
     print(f"Train dataset size (fonts): {len(train_font_data)} fonts x 20 samples = {len(train_dataset)} images")
