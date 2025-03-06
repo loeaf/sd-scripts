@@ -1200,7 +1200,7 @@ def calculate_class_weights(train_dataset, num_classes):
     class_counts = torch.zeros(num_classes)
 
     # DataLoader를 사용하여 모든 배치를 순회
-    for _, labels in tqdm(DataLoader(train_dataset, batch_size=64, shuffle=False, num_workers=4),
+    for _, labels in tqdm(DataLoader(train_dataset, batch_size=64, shuffle=False, num_workers=28),
                           desc="클래스 분포 계산 중"):
         # 각 샘플의 라벨 합산 (다중 레이블 데이터셋인 경우)
         class_counts += labels.sum(dim=0)
