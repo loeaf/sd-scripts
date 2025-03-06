@@ -836,7 +836,6 @@ class FilterClassifierCNN(nn.Module):
         return x
 
 
-# Training function
 def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=50, patience=10, device='cuda'):
     model.to(device)
     best_val_acc = 0.0
@@ -851,7 +850,6 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         'val_acc': []
     }
 
-
     for epoch in range(num_epochs):
         epoch_start = time.time()
 
@@ -861,109 +859,126 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         correct = 0
         total = 0
 
-        # Wrap with try-except to handle any unexpected errors during training
-        try:
-            # REMOVE the torch.no_grad() wrapper here!
-            for images, labels in train_loader:
+        # 진행 상황을 표시하는 tqdm 사용
+        train_pbar = tqdm(train_loader, desc=f"Epoch {epoch + 1}/{num_epochs} [Train]")
+        for images, labels in train_pbar:
+            try:
                 images, labels = images.to(device), labels.to(device)
                 optimizer.zero_grad()
-                outputs = model(images)  # 로짓
+
+                outputs = model(images)
                 loss = criterion(outputs, labels)
                 loss.backward()
                 optimizer.step()
 
                 running_loss += loss.item()
-                # 로짓을 확률로 변환
                 preds = torch.sigmoid(outputs) > 0.5
-                total += labels.size(0) * labels.size(1)
-                correct += (preds == labels).sum().item()
+                batch_correct = (preds == labels).sum().item()
+                batch_total = labels.size(0) * labels.size(1)
 
-            train_loss = running_loss / len(train_loader)
-            train_acc = 100 * correct / total
-            history['train_loss'].append(train_loss)
-            history['train_acc'].append(train_acc)
+                correct += batch_correct
+                total += batch_total
 
-            # Validation phase - here we DO want no_grad
-            model.eval()
-            val_loss = 0.0
-            val_correct = 0
-            val_total = 0
+                # 현재 배치의 정확도와 손실을 진행 바에 업데이트
+                batch_acc = 100 * batch_correct / batch_total
+                train_pbar.set_postfix({
+                    'loss': f"{loss.item():.4f}",
+                    'acc': f"{batch_acc:.2f}%",
+                    'avg_loss': f"{running_loss / (train_pbar.n + 1):.4f}",
+                    'avg_acc': f"{100 * correct / total:.2f}%"
+                })
+            except Exception as e:
+                print(f"\nError in batch: {e}")
+                continue
 
-            with torch.no_grad():  # Only use no_grad for validation
-                for images, labels in val_loader:
-                    images, labels = images.to(device), labels.to(device)
-                    outputs = model(images)
-                    loss = criterion(outputs, labels)
+        train_loss = running_loss / len(train_loader)
+        train_acc = 100 * correct / total
+        history['train_loss'].append(train_loss)
+        history['train_acc'].append(train_acc)
 
-                    val_loss += loss.item()
-                    # For multi-label classification:
-                    preds = torch.sigmoid(outputs) > 0.5
-                    val_total += labels.size(0) * labels.size(1)
-                    val_correct += (preds == labels).sum().item()
+        # Validation phase
+        model.eval()
+        val_loss = 0.0
+        val_correct = 0
+        val_total = 0
 
-            val_loss = val_loss / len(val_loader)
-            val_acc = 100 * val_correct / val_total
-            history['val_loss'].append(val_loss)
-            history['val_acc'].append(val_acc)
+        # 검증 데이터에 대한 진행 바
+        val_pbar = tqdm(val_loader, desc=f"Epoch {epoch + 1}/{num_epochs} [Valid]")
+        with torch.no_grad():
+            for images, labels in val_pbar:
+                images, labels = images.to(device), labels.to(device)
+                outputs = model(images)
+                loss = criterion(outputs, labels)
 
-            epoch_time = time.time() - epoch_start
+                val_loss += loss.item()
+                preds = torch.sigmoid(outputs) > 0.5
+                batch_correct = (preds == labels).sum().item()
+                batch_total = labels.size(0) * labels.size(1)
 
-            print(f'Epoch {epoch + 1}/{num_epochs}, '
-                  f'Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%, '
-                  f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%, '
-                  f'Time: {epoch_time:.2f}s')
-            # 100 에포크마다 모델 저장
-            if (epoch + 1) % 100 == 0:
-                checkpoint = {
-                    'epoch': epoch,
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
-                    'train_loss': train_loss,
-                    'val_loss': val_loss,
-                    'train_acc': train_acc,
-                    'val_acc': val_acc,
-                    'history': history
-                }
-                torch.save(checkpoint, f'checkpoint_epoch_{epoch + 1}.pth')
-                print(f'Checkpoint saved for epoch {epoch + 1}')
+                val_correct += batch_correct
+                val_total += batch_total
 
-            # 최고 성능 모델 따로 저장
-            if val_acc > best_val_acc:
-                best_val_acc = val_acc
-                best_epoch = epoch
-                early_stopping_counter = 0
+                # 현재 배치의 검증 정확도와 손실을 진행 바에 업데이트
+                batch_acc = 100 * batch_correct / batch_total
+                val_pbar.set_postfix({
+                    'loss': f"{loss.item():.4f}",
+                    'acc': f"{batch_acc:.2f}%",
+                    'avg_loss': f"{val_loss / (val_pbar.n + 1):.4f}",
+                    'avg_acc': f"{100 * val_correct / val_total:.2f}%"
+                })
 
-                # 최고 성능 모델 저장
-                best_checkpoint = {
-                    'epoch': epoch,
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
-                    'train_loss': train_loss,
-                    'val_loss': val_loss,
-                    'train_acc': train_acc,
-                    'val_acc': val_acc,
-                    'history': history
-                }
-                torch.save(best_checkpoint, 'best_filter_classifier.pth')
-                print(f'Best model saved with Val Acc: {val_acc:.2f}%')
-            else:
-                early_stopping_counter += 1
-                print(f'EarlyStopping counter: {early_stopping_counter} out of {patience}')
+        val_loss = val_loss / len(val_loader)
+        val_acc = 100 * val_correct / val_total
+        history['val_loss'].append(val_loss)
+        history['val_acc'].append(val_acc)
 
-            # Early stopping
+        epoch_time = time.time() - epoch_start
+
+        # 에포크 요약 출력
+        print(f'\nEpoch {epoch + 1}/{num_epochs} completed in {epoch_time:.2f}s')
+        print(f'Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%')
+        print(f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%')
+
+        # 최고 성능 모델 저장 및 조기 종료 로직 (기존 코드와 동일)
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            best_epoch = epoch
+            early_stopping_counter = 0
+
+            # 최고 성능 모델 저장
+            best_checkpoint = {
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'train_loss': train_loss,
+                'val_loss': val_loss,
+                'train_acc': train_acc,
+                'val_acc': val_acc,
+                'history': history
+            }
+            torch.save(best_checkpoint, 'best_filter_classifier.pth')
+            print(f'New best model saved with Val Acc: {val_acc:.2f}%')
+        else:
+            early_stopping_counter += 1
+            print(f'EarlyStopping counter: {early_stopping_counter} out of {patience}')
+
             if early_stopping_counter >= patience:
-                print(
-                    f'Early stopping triggered after epoch {epoch + 1}. Best epoch was {best_epoch + 1} with validation accuracy: {best_val_acc:.2f}%')
+                print(f'Early stopping triggered. Best epoch was {best_epoch + 1} with Val Acc: {best_val_acc:.2f}%')
                 break
 
-        except Exception as e:
-            print(f"Error during training epoch {epoch + 1}: {e}")
-            # Skip to next epoch
-            continue
+        # 주기적인 체크포인트 저장
+        if (epoch + 1) % 10 == 0:
+            checkpoint = {
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'history': history
+            }
+            torch.save(checkpoint, f'checkpoint_epoch_{epoch + 1}.pth')
+            print(f'Checkpoint saved at epoch {epoch + 1}')
 
-    print(f'Best validation accuracy: {best_val_acc:.2f}% at epoch {best_epoch + 1}')
+    print(f'Training completed. Best validation accuracy: {best_val_acc:.2f}% at epoch {best_epoch + 1}')
     return model, history
-
 
 # Model evaluation function
 def evaluate_model(model, test_loader, device='cuda', label_map=None):
