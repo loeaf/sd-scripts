@@ -1246,16 +1246,16 @@ def main():
     # 클래스 균형 맞추기는 여기서는 적용하지 않음 (동적 생성이기 때문에 복잡해짐)
     train_loader = DataLoader(
         train_dataset,
-        batch_size=364,  # 더 작은 배치 사이즈 사용 (이미지 생성 시간 고려)
+        batch_size=420,  # 더 작은 배치 사이즈 사용 (이미지 생성 시간 고려)
         shuffle=True,
         num_workers=28,
         pin_memory=True,
         multiprocessing_context='spawn'
     )
 
-    val_loader = DataLoader(val_dataset, batch_size=364, shuffle=False, num_workers=28, pin_memory=True,
+    val_loader = DataLoader(val_dataset, batch_size=420, shuffle=False, num_workers=28, pin_memory=True,
                             multiprocessing_context='spawn')
-    test_loader = DataLoader(test_dataset, batch_size=364, shuffle=False, num_workers=28, pin_memory=True,
+    test_loader = DataLoader(test_dataset, batch_size=420, shuffle=False, num_workers=28, pin_memory=True,
                              multiprocessing_context='spawn')
 
     # main 함수 내에서 모델 초기화 부분 수정
