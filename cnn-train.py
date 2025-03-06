@@ -1248,14 +1248,14 @@ def main():
         train_dataset,
         batch_size=460,  # 더 작은 배치 사이즈 사용 (이미지 생성 시간 고려)
         shuffle=True,
-        num_workers=28,
+        num_workers=4,
         pin_memory=True,
         multiprocessing_context='spawn'
     )
 
-    val_loader = DataLoader(val_dataset, batch_size=460, shuffle=False, num_workers=28, pin_memory=True,
+    val_loader = DataLoader(val_dataset, batch_size=460, shuffle=False, num_workers=4, pin_memory=True,
                             multiprocessing_context='spawn')
-    test_loader = DataLoader(test_dataset, batch_size=460, shuffle=False, num_workers=28, pin_memory=True,
+    test_loader = DataLoader(test_dataset, batch_size=460, shuffle=False, num_workers=4, pin_memory=True,
                              multiprocessing_context='spawn')
 
     # main 함수 내에서 모델 초기화 부분 수정
