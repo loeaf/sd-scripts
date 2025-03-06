@@ -850,6 +850,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         'val_acc': []
     }
 
+
     for epoch in range(num_epochs):
         epoch_start = time.time()
 
@@ -861,40 +862,43 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
 
         # Wrap with try-except to handle any unexpected errors during training
         try:
-            with torch.no_grad():
-                for images, labels in train_loader:
-                    images, labels = images.to(device), labels.to(device)
-                    optimizer.zero_grad()
-                    outputs = model(images)  # 로짓
-                    loss = criterion(outputs, labels)
-                    loss.backward()
-                    optimizer.step()
+            # REMOVE the torch.no_grad() wrapper here!
+            for images, labels in train_loader:
+                images, labels = images.to(device), labels.to(device)
+                optimizer.zero_grad()
+                outputs = model(images)  # 로짓
+                loss = criterion(outputs, labels)
+                loss.backward()
+                optimizer.step()
 
-                    # 로짓을 확률로 변환
-                    preds = torch.sigmoid(outputs) > 0.5
-                    total += labels.size(0) * labels.size(1)
-                    correct += (preds == labels).sum().item()
+                running_loss += loss.item()
+                # 로짓을 확률로 변환
+                preds = torch.sigmoid(outputs) > 0.5
+                total += labels.size(0) * labels.size(1)
+                correct += (preds == labels).sum().item()
 
-                train_loss = running_loss / len(train_loader)
-                train_acc = 100 * correct / total
-                history['train_loss'].append(train_loss)
-                history['train_acc'].append(train_acc)
+            train_loss = running_loss / len(train_loader)
+            train_acc = 100 * correct / total
+            history['train_loss'].append(train_loss)
+            history['train_acc'].append(train_acc)
 
-                # Validation phase
-                model.eval()
-                val_loss = 0.0
-                val_correct = 0
-                val_total = 0
+            # Validation phase - here we DO want no_grad
+            model.eval()
+            val_loss = 0.0
+            val_correct = 0
+            val_total = 0
 
+            with torch.no_grad():  # Only use no_grad for validation
                 for images, labels in val_loader:
                     images, labels = images.to(device), labels.to(device)
                     outputs = model(images)
                     loss = criterion(outputs, labels)
 
                     val_loss += loss.item()
-                    _, predicted = torch.max(outputs.data, 1)
-                    val_total += labels.size(0)
-                    val_correct += (predicted == labels).sum().item()
+                    # For multi-label classification:
+                    preds = torch.sigmoid(outputs) > 0.5
+                    val_total += labels.size(0) * labels.size(1)
+                    val_correct += (preds == labels).sum().item()
 
             val_loss = val_loss / len(val_loader)
             val_acc = 100 * val_correct / val_total
@@ -907,7 +911,6 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
                   f'Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%, '
                   f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%, '
                   f'Time: {epoch_time:.2f}s')
-
             # 100 에포크마다 모델 저장
             if (epoch + 1) % 100 == 0:
                 checkpoint = {
