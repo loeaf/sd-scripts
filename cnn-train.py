@@ -47,12 +47,13 @@ from collections import Counter
 
 
 class DynamicFontDataset(Dataset):
-    def __init__(self, font_data, label_map, transforms=None, target_size=(224, 224)):
+    def __init__(self, font_data, label_map, transforms=None, target_size=(224, 224), samples_per_font=200):
         self.font_data = font_data
         self.label_map = label_map
         self.num_classes = len(label_map)
         self.transforms = transforms
         self.target_size = target_size
+        self.samples_per_font = samples_per_font
         self.korean_chars = self.load_korean_chars()
     # 폰트개수
     def __getitem__(self, idx):
@@ -93,8 +94,8 @@ class DynamicFontDataset(Dataset):
             return [chr(code) for code in range(44032, 44032 + 100)]
 
     def __len__(self):
-        # 폰트 수 * 텍스트 샘플 수 * 평균 필터 수
-        return len(self.font_data) * 200  # 폰트당 20개 샘플 생성
+        # 폰트 수 * 텍스트 샘플 수
+        return len(self.font_data) * self.samples_per_font  # 폰트당 20개 샘플 생성
 
     def create_text_image(self, text, font_path):
         """텍스트 이미지 생성"""
@@ -1145,14 +1146,23 @@ def main():
     train_font_data = [font_data[i] for i in train_ids]
     val_font_data = [font_data[i] for i in val_ids]
     test_font_data = [font_data[i] for i in test_ids]
+    # For testing purposes, use a much smaller dataset
+    train_font_data = train_font_data[:100]  # Just use 100 fonts for testing
+    val_font_data = val_font_data[:20]
+    test_font_data = test_font_data[:20]
 
     # 동적 데이터셋 생성
     train_transforms = get_train_transforms(use_gray=False)
     val_transforms = get_val_transforms()
 
-    train_dataset = DynamicFontDataset(train_font_data, label_map, transforms=train_transforms)
-    val_dataset = DynamicFontDataset(val_font_data, label_map, transforms=val_transforms)
-    test_dataset = DynamicFontDataset(test_font_data, label_map, transforms=val_transforms)
+    train_dataset = DynamicFontDataset(train_font_data, label_map, transforms=train_transforms, samples_per_font=200)
+    val_dataset = DynamicFontDataset(val_font_data, label_map, transforms=val_transforms, samples_per_font=200)
+    test_dataset = DynamicFontDataset(test_font_data, label_map, transforms=val_transforms, samples_per_font=200)
+
+    # 출력 메시지에서 동적으로 계산된 값 사용
+    print(f"Train dataset size: {len(train_dataset)} images ({len(train_font_data)} fonts)")
+    print(f"Validation dataset size: {len(val_dataset)} images ({len(val_font_data)} fonts)")
+    print(f"Test dataset size: {len(test_dataset)} images ({len(test_font_data)} fonts)")
 
     # DataLoader 생성
     # 클래스 균형 맞추기는 여기서는 적용하지 않음 (동적 생성이기 때문에 복잡해짐)
@@ -1169,10 +1179,6 @@ def main():
                             multiprocessing_context='spawn')
     test_loader = DataLoader(test_dataset, batch_size=20, shuffle=False, num_workers=25, pin_memory=True,
                              multiprocessing_context='spawn')
-
-    print(f"Train dataset size (fonts): {len(train_font_data)} fonts x 20 samples = {len(train_dataset)} images")
-    print(f"Validation dataset size: {len(val_dataset)} images")
-    print(f"Test dataset size: {len(test_dataset)} images")
 
     # main 함수 내에서 모델 초기화 부분 수정
     num_classes = len(label_map)
