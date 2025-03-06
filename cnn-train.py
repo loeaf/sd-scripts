@@ -1015,7 +1015,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
                 'val_acc': val_acc,
                 'history': history
             }
-            torch.save(best_checkpoint, 'best_filter_classifier.pth')
+            torch.save(best_checkpoint, '../font-style-cls/best_filter_classifier.pth')
             print(f'New best model saved with Val Acc: {val_acc:.2f}%')
         else:
             early_stopping_counter += 1
@@ -1192,6 +1192,34 @@ class FontDataset(Dataset):
             return image, self.labels[idx]
 
 
+def calculate_class_weights(train_dataset, num_classes):
+    """데이터셋에서 클래스 가중치를 동적으로 계산합니다."""
+    print("데이터셋에서 클래스 가중치를 계산 중...")
+
+    # 클래스별 카운트를 저장할 배열 초기화
+    class_counts = torch.zeros(num_classes)
+
+    # DataLoader를 사용하여 모든 배치를 순회
+    for _, labels in tqdm(DataLoader(train_dataset, batch_size=64, shuffle=False, num_workers=4),
+                          desc="클래스 분포 계산 중"):
+        # 각 샘플의 라벨 합산 (다중 레이블 데이터셋인 경우)
+        class_counts += labels.sum(dim=0)
+
+    # 0으로 나누는 것을 방지하기 위해 최소값 설정
+    class_counts = torch.clamp(class_counts, min=1.0)
+
+    # 역수 계산 - 샘플이 적은 클래스에 더 높은 가중치 부여
+    class_weights = 1.0 / class_counts
+
+    # 가중치 정규화 (모든 가중치의 평균이 1이 되도록)
+    class_weights = class_weights / class_weights.sum() * len(class_weights)
+
+    # 클래스별 가중치 출력 (디버깅용)
+    for i in range(num_classes):
+        print(f"클래스 {i}: 샘플 수 = {class_counts[i]}, 가중치 = {class_weights[i]:.4f}")
+
+    return class_weights
+
 # Main execution function
 def main():
 
@@ -1280,14 +1308,8 @@ def main():
     # 모델을 device로 옮기기
     model.to(device)
 
-    # Define loss function and optimizer
-    # 클래스별 샘플 수에 기반한 가중치 계산
-    class_counts = [61, 273, 806, 264, 191, 2498, 249, 1009, 76, 361, 41, 356, 66, 2029, 59, 77, 68, 10, 36, 125, 159,
-                    1382, 429, 299, 265, 249, 356]
-    class_weights = 1.0 / torch.tensor(class_counts, dtype=torch.float)
-
-    # 가중치 정규화 (모든 가중치의 평균이 1이 되도록)
-    class_weights = class_weights / class_weights.sum() * len(class_weights)
+    # 데이터셋에서 클래스 가중치 계산
+    class_weights = calculate_class_weights(train_dataset, num_classes)
 
     # GPU에 가중치 텐서 이동
     class_weights = class_weights.to(device)
