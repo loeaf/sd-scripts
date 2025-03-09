@@ -1316,7 +1316,7 @@ def main():
 
     # 가중치를 적용한 BCE 손실 함수 사용
     criterion = nn.BCEWithLogitsLoss(pos_weight=class_weights)
-    optimizer = optim.Adam(model.parameters(), lr=0.0001, weight_decay=1e-4)
+    optimizer = optim.Adam(model.parameters(), lr=0.00001, weight_decay=1e-4)
 
     # Train the model
     print("Starting training...")
