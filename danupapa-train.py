@@ -84,7 +84,7 @@ def process_image_set(image_dir):
 
     return output_dir, lora_dir
 
-# find /data/train/lora_image-set_20250321_104407/ -name "*.safetensors" -exec mv {} /home/user/data/stable-diffusion-webui-forge/models/Lora \;
+# find /data/train/lora_real-image-set_20250321_130747/ -name "*.safetensors" -exec mv {} /home/user/data/stable-diffusion-webui-forge/models/Lora \;
 # python danupapa-train.py --image_dir "/data/train/real-image-set"
 
 def create_config(image_dir):
@@ -142,15 +142,14 @@ def main():
     # Save config file
     with open(config_path, "w") as f:
         toml.dump(config, f)
-
-    # Base command for training
+    # 수정된 명령어
     base_cmd = (
         f'CUDA_VISIBLE_DEVICES=1 {args.base_command} '
         '--pretrained_model_name_or_path="/home/user/data/stable-diffusion-webui-forge/models/Stable-diffusion/celestial.safetensors" '
         '--network_module=networks.lora '
         '--network_args "conv_dim=16" "conv_alpha=8" '
-        '--network_dim=128 '
-        '--network_alpha=64 '
+        '--network_dim=64 '  # 128에서 64로 줄임
+        '--network_alpha=32 '  # 64에서 32로 줄임
         '--loss_type=smooth_l1 '
         '--huber_schedule=snr '
         '--huber_c=0.5 '
@@ -158,14 +157,16 @@ def main():
         '--noise_offset=0.1 '
         '--optimizer_type=Lion '
         '--learning_rate=1e-5 '
-        '--max_train_epochs=100 '
+        '--max_train_epochs=15 '  # 100에서 15로 크게 줄임
         '--lr_scheduler=cosine_with_restarts '
         '--save_state_on_train_end '
         '--save_precision=fp16 '
         '--mixed_precision=fp16 '
         '--noise_offset_random_strength '
         '--gradient_accumulation_steps=4 '
-        '--lr_scheduler_num_cycles=5 '
+        '--lr_scheduler_num_cycles=2 '  # 5에서 2로 줄임
+        '--clip_skip=2 '  # 추가: 더 일반적인 특징 캡처
+        '--save_every_n_epochs=1 '  # 추가: 중간 체크포인트 저장
         '--huber_schedule=snr'
     )
 
