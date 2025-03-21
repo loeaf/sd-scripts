@@ -84,6 +84,8 @@ def process_image_set(image_dir):
 
     return output_dir, lora_dir
 
+# find /data/train/lora_image-set_20250321_104407/ -name "*.safetensors" -exec mv {} /home/user/data/stable-diffusion-webui-forge/models/Lora \;
+# python danupapa-train.py --image_dir "/data/train/image-set"
 
 def create_config(image_dir):
     """Create config dictionary with the specified image_dir"""
@@ -144,7 +146,7 @@ def main():
     # Base command for training
     base_cmd = (
         f'CUDA_VISIBLE_DEVICES=1 {args.base_command} '
-        '--pretrained_model_name_or_path="/home/user/data/stable-diffusion-webui-forge/models/Stable-diffusion/Anything-v4.5-pruned.safetensors" '
+        '--pretrained_model_name_or_path="/home/user/data/stable-diffusion-webui-forge/models/Stable-diffusion/celestial.safetensors" '
         '--network_module=networks.lora '
         '--network_args "conv_dim=16" "conv_alpha=8" '
         '--network_dim=128 '
