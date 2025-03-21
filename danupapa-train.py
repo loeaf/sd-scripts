@@ -85,7 +85,7 @@ def process_image_set(image_dir):
     return output_dir, lora_dir
 
 # find /data/train/lora_image-set_20250321_104407/ -name "*.safetensors" -exec mv {} /home/user/data/stable-diffusion-webui-forge/models/Lora \;
-# python danupapa-train.py --image_dir "/data/train/image-set"
+# python danupapa-train.py --image_dir "/data/train/real-image-set"
 
 def create_config(image_dir):
     """Create config dictionary with the specified image_dir"""
@@ -98,7 +98,7 @@ def create_config(image_dir):
         "datasets": [
             {
                 "resolution": 512,
-                "batch_size": 3,
+                "batch_size": 2,
                 "subsets": [
                     {
                         "image_dir": image_dir,
