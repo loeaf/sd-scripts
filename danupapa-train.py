@@ -1,5 +1,4 @@
 import csv
-import pandas as pd
 import os
 import argparse
 import subprocess
@@ -9,6 +8,7 @@ import requests
 import toml
 import uuid
 import shutil
+import datetime
 
 GOOGLE_CHAT_WEBHOOK = "https://chat.googleapis.com/v1/spaces/AAAABLzMLsI/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=lwSnIq9XvRuT56A9BRh1xEuE-wU8vzqny_skSrTMIio"
 
@@ -24,26 +24,28 @@ def send_google_chat_message(message):
 def process_image_set(image_dir):
     """
     이미지 파일들의 이름을 UUID로 변경하고 동일한 이름의 텍스트 파일을 생성합니다.
+    모든 이미지가 하나의 학습 세트로 사용됩니다.
 
     Args:
         image_dir (str): 이미지 파일들이 있는 디렉토리 경로
 
     Returns:
-        str: 처리된 이미지를 포함하는 디렉토리 경로
+        tuple: (처리된 이미지 디렉토리 경로, LoRA 모델 저장 경로)
     """
     # 이미지 확장자 목록
     image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
-    results = []
+    processed_images = []
+
+    # 타임스탬프로 고유한 폴더명 생성
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    dir_name = Path(image_dir).name
 
     # 결과를 저장할 디렉토리 생성
-    output_dir = os.path.join(image_dir, f"processed_{int(Path(image_dir).stat().st_mtime)}")
+    output_dir = os.path.join(os.path.dirname(image_dir), f"processed_{dir_name}_{timestamp}")
     os.makedirs(output_dir, exist_ok=True)
 
-    # 결과를 저장할 CSV 파일 경로
-    output_csv = os.path.join(output_dir, 'font_pairs.csv')
-
-    # LoRA 저장 경로 생성
-    lora_dir = os.path.join(output_dir, 'lora')
+    # LoRA 저장 경로 생성 (단일 LoRA 모델을 위한 경로)
+    lora_dir = os.path.join(os.path.dirname(image_dir), f"lora_{dir_name}_{timestamp}")
     os.makedirs(lora_dir, exist_ok=True)
 
     # 디렉토리 내의 모든 파일 순회
@@ -69,75 +71,37 @@ def process_image_set(image_dir):
             # 이미지 파일 복사
             shutil.copy2(file_path, new_file_path)
 
-            # 동일한 이름의 빈 텍스트 파일 생성
+            # 동일한 이름의 텍스트 파일 생성
             with open(txt_file_path, 'w') as txt_file:
-                txt_file.write(f"Original filename: {filename}\n")
-                txt_file.write(f"UUID: {file_uuid}\n")
+                txt_file.write(f"danupapa, sd character, single character")
 
-            # LoRA 모델이 저장될 경로
-            lora_path = os.path.join(lora_dir, file_uuid)
-
-            # 결과 저장 (target, origin, uuid, train_path, lora_path, thumbnail_path)
-            results.append([filename.split('.')[0], filename, file_uuid, output_dir, lora_path, ""])
-
+            processed_images.append(new_filename)
             print(f"Processed: {filename} -> {new_filename}")
 
-    # 결과를 CSV 파일로 저장
-    with open(output_csv, 'w', newline='') as csvfile:
-        csv_writer = csv.writer(csvfile)
-        csv_writer.writerow(['target', 'origin', 'uuid', 'train_path', 'lora_path', 'thumbnail_path'])
-        csv_writer.writerows(results)
+    print(f"\nProcessed {len(processed_images)} images.")
+    print(f"Images saved to: {output_dir}")
+    print(f"LoRA will be saved to: {lora_dir}")
 
-    print(f"\nProcessed {len(results)} images.")
-    print(f"CSV saved to: {output_csv}")
-
-    return output_csv, output_dir
-
-
-def read_dataset_paths(csv_file):
-    """Read dataset paths from CSV file
-    # 0: target, 1: origin, 2: uuid, 3: train_path, 4: lora_path, 5: thumbnail_path
-    using index 3, 5
-    """
-    arr = []
-    with open(csv_file, 'r') as f:
-        # read csv file f
-        data = f.readlines()
-
-        # 첫 번째 행이 헤더인 경우 제외
-        if len(data) > 0 and 'target' in data[0].lower():
-            data = data[1:]
-
-        # row split by ',' and get 3rd index and 4th index
-        data = [row.split(',') for row in data]
-        for row in data:
-            if len(row) >= 5:  # 최소 5개 열이 있는지 확인
-                print(row[3], row[4])
-                arr.append([row[3], row[4]])
-
-    return arr
+    return output_dir, lora_dir
 
 
 def create_config(image_dir):
     """Create config dictionary with the specified image_dir"""
     config = {
         "general": {
-            "enable_bucket": True,  # 단순 로고는 bucket 불필요
-            "shuffle_caption": False,  # 캡션 순서 고정
+            "enable_bucket": True,
+            "shuffle_caption": False,
             "keep_tokens": 3
-
         },
         "datasets": [
             {
-                "resolution": 512,  # 해상도 증가
+                "resolution": 512,
                 "batch_size": 3,
                 "subsets": [
                     {
                         "image_dir": image_dir,
                         "class_tokens": "professional typography, high quality lettering, vector art, clean lines, precise curves, detailed typography, artistic font design",
-                        # 더 구체적인 캡션
-                        "num_repeats": 15,  # 적은 이미지 수 고려
-
+                        "num_repeats": 15,
                     }
                 ]
             }
@@ -155,88 +119,70 @@ def main():
 
     # 이미지 세트 처리 (UUID 변환 및 텍스트 파일 생성)
     print(f"Processing images in: {args.image_dir}")
-    csv_file, processed_dir = process_image_set(args.image_dir)
+    processed_dir, lora_dir = process_image_set(args.image_dir)
 
     # 전처리만 수행하는 경우 여기서 종료
     if args.preprocess_only:
-        print(f"Preprocessing completed. CSV file created at: {csv_file}")
+        print(f"Preprocessing completed. Processed images are in: {processed_dir}")
         return
 
-    # read lora path from csv file
-    dataset_paths = read_dataset_paths(csv_file)
+    # 학습 설정 생성
+    print(f"Creating training configuration...")
 
-    if not dataset_paths:
-        print("No valid dataset paths found in CSV file.")
-        return
+    # Create config for this dataset
+    os.makedirs('./config', exist_ok=True)
+    config = create_config(processed_dir)
 
-    # Process each dataset path
-    for i, obj in enumerate(dataset_paths, 1):
-        dataset_path = obj[0]
-        lora_path = obj[1].replace('\n', '')
-        print(f"Processing dataset {i}/{len(dataset_paths)}")
+    # Create config file path
+    config_name = os.path.basename(processed_dir)
+    config_path = f"./config/config_{config_name}.toml"
 
-        # 학습에 필요한 디렉토리 생성
-        os.makedirs(lora_path, exist_ok=True)
+    # Save config file
+    with open(config_path, "w") as f:
+        toml.dump(config, f)
 
-        # Base command without config path
-        base_cmd = (
-            f'CUDA_VISIBLE_DEVICES=1 {args.base_command} '
-            '--pretrained_model_name_or_path="/home/user/data/stable-diffusion-webui-forge/models/Stable-diffusion/Anything-v4.5-pruned.safetensors" '
-            '--network_module=networks.lora '
-            '--network_args "conv_dim=16" "conv_alpha=8" '  # 더 작게 감소
-            '--network_dim=128 '  # 128에서 64로 감소
-            '--network_alpha=64 '  # 64에서 32로 감소
-            '--loss_type=smooth_l1 '  # 추가: Huber/smooth L1/MSE 손실 함수 선택
-            '--huber_schedule=snr '  # 추가: 스케줄링 방법 선택
-            '--huber_c=0.5 '  # 추가: Huber 손실 파라미터
-            f'--output_dir="{lora_path}" '
-            '--noise_offset=0.1 '
-            '--optimizer_type=Lion '
-            '--learning_rate=1e-5 '  # 5e-6에서 상향 - 더 적극적인 학습
-            '--max_train_epochs=100 '  # 60에서 100으로 증가
-            '--lr_scheduler=cosine_with_restarts '
-            '--save_state_on_train_end '
-            '--save_precision=fp16 '
-            '--mixed_precision=fp16 '
-            '--noise_offset_random_strength '
-            '--gradient_accumulation_steps=4 '  # 그래디언트 누적으로 안정성 향상
-            '--lr_scheduler_num_cycles=5 '  # 학습률 재시작 횟수 명시
-            '--huber_schedule=snr'
-        )
+    # Base command for training
+    base_cmd = (
+        f'CUDA_VISIBLE_DEVICES=1 {args.base_command} '
+        '--pretrained_model_name_or_path="/home/user/data/stable-diffusion-webui-forge/models/Stable-diffusion/Anything-v4.5-pruned.safetensors" '
+        '--network_module=networks.lora '
+        '--network_args "conv_dim=16" "conv_alpha=8" '
+        '--network_dim=128 '
+        '--network_alpha=64 '
+        '--loss_type=smooth_l1 '
+        '--huber_schedule=snr '
+        '--huber_c=0.5 '
+        f'--output_dir="{lora_dir}" '
+        '--noise_offset=0.1 '
+        '--optimizer_type=Lion '
+        '--learning_rate=1e-5 '
+        '--max_train_epochs=100 '
+        '--lr_scheduler=cosine_with_restarts '
+        '--save_state_on_train_end '
+        '--save_precision=fp16 '
+        '--mixed_precision=fp16 '
+        '--noise_offset_random_strength '
+        '--gradient_accumulation_steps=4 '
+        '--lr_scheduler_num_cycles=5 '
+        '--huber_schedule=snr'
+    )
 
-        print(f"\nProcessing dataset {os.path.basename(dataset_path)}/{len(dataset_paths)}")
-        print(f"Dataset path: {dataset_path}")
+    # Create training command for this dataset
+    output_name = os.path.basename(args.image_dir)
+    current_cmd = f'{base_cmd} --dataset_config="{config_path}" --output_name="{output_name}"'
 
-        # Create config for this dataset
-        # mkdir
-        os.makedirs('./config', exist_ok=True)
-        config = create_config(dataset_path)
+    try:
+        # Execute training command
+        print(f"Training model with images from: {processed_dir}")
+        print(f"Using config file: {config_path}")
+        print(f"LoRA model will be saved to: {lora_dir}")
+        subprocess.run(current_cmd, shell=True, check=True)
+        send_google_chat_message(f"폰트 학습 완료: {output_name}")
+        print("Training completed successfully.")
+    except subprocess.CalledProcessError as e:
+        print(f"Error during training: {e}")
+        send_google_chat_message(f"폰트 학습 오류 발생: {output_name} - {str(e)}")
 
-        # Create config file path
-        config_path = f"./config/config_{os.path.basename(dataset_path)}.toml"
 
-        # Save config file
-        with open(config_path, "w") as f:
-            toml.dump(config, f)
-
-        # Create training command for this dataset
-        current_cmd = f'{base_cmd} --dataset_config="{config_path}" --output_name="{os.path.basename(dataset_path)}"'
-
-        try:
-            # Execute training command
-            print(f"Training model for {dataset_path}")
-            print(f"Using config file: {config_path}")
-            subprocess.run(current_cmd, shell=True, check=True)
-        except subprocess.CalledProcessError as e:
-            print(f"Error processing dataset {dataset_path}: {e}")
-            continue
-
-    send_google_chat_message("폰트 학습 완료")
-    print("All training processes completed successfully.")
-
-# 전처리 및 학습 모두 수행
-# python danupapa-train.py --image_dir "경로/image-set"
-# 전처리만 수행
-#python danupapa-train.py --image_dir "경로/image-set" --preprocess_only
 if __name__ == "__main__":
     main()
